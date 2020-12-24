@@ -33,13 +33,13 @@ Harvis has several features to help you organize your available domains and redi
 ```
 git clone https://github.com/thiagomayllart/Harvis/
 cd Harvis
-pip install -r requirements
+pip3 install -r requirements
 ```
 
 ### Running
 
 ```
-python harvis.py
+python3 harvis.py
 ```
 
 
