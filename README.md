@@ -35,6 +35,14 @@ cd Harvis
 pip install -r requirements
 ```
 
+### Running
+
+```
+python harvis.py
+```
+
+
+
 ## Configuring API Keys
 
 Harvis can only be used with the proper API Keys from Digital Ocean, Namecheap, APIVoid.
