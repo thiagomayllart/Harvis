@@ -395,7 +395,8 @@ def update_operation(domains_brn, c2_brn, redirects_brn, domains_in_use, c2_list
             for k in redirects:
                 if redirects[k]["domain"] == i["domains"]:
                     object_burned = redirects[k]
-                    burned_domains.append(redirects[k]["domain"])
+                    if object_burned not in burned_domains:
+                        burned_domains.append(redirects[k]["domain"])
             message_already_in = False
             if object_burned:
                 for m in message_queu["action1"]:
