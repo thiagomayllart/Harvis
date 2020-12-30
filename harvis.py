@@ -390,13 +390,19 @@ def update_operation(domains_brn, c2_brn, redirects_brn, domains_in_use, c2_list
         for i in domains_brn:
             full_message = full_message +"[+] Domain burned: "+i["domains"] +"\n"
             for j in i["blacklist_list"]:
-                full_message = full_message +"\t Caught by: "+j["engine"]+". Reference: "+j["reference"]
+                full_message = full_message +"\t Caught by: "+j["engine"]+". Reference: "+j["reference"] +"\n"
             object_burned = ""
             for k in redirects:
                 if redirects[k]["domain"] == i["domains"]:
                     object_burned = redirects[k]
                     burned_domains.append(redirects[k]["domain"])
-            message_queu["action1"].append({"message":full_message, "droplet":object_burned})
+            message_already_in = False
+            for m in message_queu["action1"]:
+                if m["droplet"]["ip"] == object_burned["ip"]:
+                    message_already_in = True
+            if message_already_in == False:
+                message_queu["action1"].append({"message":full_message, "droplet":object_burned})
+                #avoid adding same message multiple times
 
 
     """
