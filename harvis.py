@@ -610,7 +610,9 @@ def discard_components():
                             del_droplet(redirects[k]["id"])
                             del_droplet(c2_list[k]["id"])
                             redirects[k] = temp_redirects[k]
-                            temp_redirects[k] = ""
+                            c2_list[k] = temp_c2_list[k]
+                            temp_redirects.pop(k, None)
+                            temp_c2_list.pop(k, None)
 
                 for i in message_queu["action2"][:]:
                     for k in c2_list:
@@ -618,7 +620,8 @@ def discard_components():
                             message_queu["action7"].remove(i)
                             del_droplet(c2_list[k]["id"])
                             c2_list[k] = temp_c2_list[k]
-                            temp_c2_list[k] = ""
+                            temp_c2_list.pop(k, None)
+
             else:
                 if int(component) > len(redirects):
 
@@ -632,7 +635,7 @@ def discard_components():
 
                     del_droplet(c2_list[component_key]["id"])
                     c2_list[component_key] = temp_c2_list[component_key]
-                    temp_c2_list[component_key] = None
+                    temp_c2_list.pop(component_key, None)
 
                 else:
 
@@ -647,7 +650,9 @@ def discard_components():
                     del_droplet(redirects[component_key]["id"])
                     del_droplet(c2_list[component_key]["id"])
                     redirects[component_key] = temp_redirects[component_key]
-                    temp_redirects[component_key] = None
+                    c2_list[component_key] = temp_c2_list[component_key]
+                    temp_redirects.pop(component_key, None)
+                    temp_c2_list.pop(component_key, None)
 
                     # get component modified from message_queue
 
