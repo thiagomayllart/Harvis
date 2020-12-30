@@ -85,6 +85,7 @@ def kill_process_like(command):
     os.system("pkill -f \"ssh -o\"")
 
 def generate_image_from_snapshot(key_gb):
+    key_gb = str(key_gb)
     worked = False
     while worked == False:
         try:
@@ -361,7 +362,7 @@ def config_droplet(type, type_connect,c2_type):
                 print("Redirectors Set")
             if type_connect == 4:
                 print("Setting Temporary C2's")
-                ip = c2_list[type]['ip']
+                ip = temp_c2_list[type]['ip']
                 ssh.connect(ip, username='root', pkey=k)
                 worked = True
                 c2_setup.install_c2(ssh,c2_type)
@@ -510,6 +511,10 @@ def damaged_components():
                             redirects[k]["state"] = "pending_kill"
                             first_creation(k, 3)
                             config_droplet(k,3,0)
+
+                            first_creation(k, 4)
+                            config_droplet(k, 4, 0)
+
                             message_queu["action1"].remove(i)
                             message_queu["action7"].append(
                                 {"message": "Temporary Droplet Ready. Pending discard.", "droplet": i})
@@ -529,7 +534,7 @@ def damaged_components():
                     key_list = list(c2_list)
                     component_key = key_list[int(component) - 1]
                     c2_list[component_key]["state"] = "pending_kill"
-                    comp_mod_ip = redirects[component_key]["ip"]
+                    comp_mod_ip = c2_list[component_key]["ip"]
                     first_creation(component_key, 4)
                     config_droplet(component_key, 4, 0)
                     for i in message_queu["action1"][:]:
@@ -543,6 +548,13 @@ def damaged_components():
                     comp_mod_ip = redirects[component_key]["ip"]
                     first_creation(component_key,3)
                     config_droplet(component_key, 3, 0)
+
+                    c2_list[component_key]["state"] = "pending_kill"
+                    c2_mod_ip = c2_list[component_key]["ip"]
+                    first_creation(component_key,4)
+                    config_droplet(component_key,4,0)
+
+
                     for i in message_queu["action1"][:]:
                         if i["droplet"]["ip"] == comp_mod_ip:
                             message_queu["action7"].append({"message":"Temporary Droplet Ready. Pending discard.","droplet":i})
@@ -871,6 +883,9 @@ def restricted_menu():
                     print(f"{bcolors.FAIL}[+] Domain not available{bcolors.ENDC}")
                 else:
                     print(f"{bcolors.OKBLUE}[+] Domain successfuly acquired{bcolors.ENDC}")
+                    temp_domains = list(api.domains_getList())
+                    for i in temp_domains:
+                        domains.append(i['name'])
             if command == '2':
                 print(f"{bcolors.BOLD}[+] Select Domains to move to a haul: {bcolors.ENDC}")
                 actual_domains = set(domains) - set(domains_in_use) - set(burned_domains)
