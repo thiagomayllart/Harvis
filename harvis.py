@@ -601,6 +601,7 @@ def discard_components():
                         if redirects[k]["ip"] == i["droplet"]["ip"]:
                             message_queu["action7"].remove(i)
                             del_droplet(redirects[k]["id"])
+                            del_droplet(c2_list[k]["id"])
                             redirects[k] = temp_redirects[k]
                             temp_redirects[k] = None
 
@@ -637,6 +638,7 @@ def discard_components():
                             message_queu["action7"].remove(i)
 
                     del_droplet(redirects[component_key]["id"])
+                    del_droplet(c2_list[component_key]["id"])
                     redirects[component_key] = temp_redirects[component_key]
                     temp_redirects[component_key] = None
 
