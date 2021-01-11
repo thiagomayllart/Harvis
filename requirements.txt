@@ -3,3 +3,4 @@ paramiko~=2.7.1
 privex-namecheap
 bs4~=0.0.1
 beautifulsoup4~=4.9.3
+pycrypto
