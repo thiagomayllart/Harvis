@@ -18,7 +18,6 @@ import redirect_setup
 import c2_setup
 import apivoid_handler
 import namecheap_handler
-from namecheapapi import DomainAPI
 import backup_handle
 import backup
 import json
