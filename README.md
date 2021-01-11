@@ -48,7 +48,7 @@ python3 harvis.py
 
 Harvis can only be used with the proper API Keys from Digital Ocean, Namecheap, APIVoid.
 
-These api keys should be added to the config.py file in the respective lines:
+These api keys should be added to the config.py file in the respective lines. Don't forget to setup your namecheap username in namecheap_username variable:
 
 ```
 digital_ocean_token = ""
@@ -56,6 +56,8 @@ digital_ocean_token = ""
 namecheap_key = ""
 ...
 apivoid_key = ""
+...
+namecheap_username = ""
 ...
 ```
 
