@@ -10,7 +10,7 @@ Harvis is a python tool to help you create multiple hauls for a specific operati
 
 :hammer: Harvis uses the Digital Ocean API to automate creation and deletion of droplets.
 
-:hammer: The Namecheap API is used to DNS records to redirectors.
+:hammer: The Namecheap API is used to set DNS records to redirectors.
 
 :hammer: The API Void is used to constantly verify the state of the redirectors and check if anything is blacklisted.
 
