@@ -2,6 +2,7 @@ from bs4 import BeautifulSoup
 import requests
 import config
 import base64
+import os
 
 
 csrf_token = ""
@@ -20,6 +21,20 @@ def install_mythic(ssh):
     ssh_stdout = stdout.read()
     (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; ./start_mythic.sh")
     ssh_stdout = stdout.read()
+
+def setup_certificate(ssh,type):
+    sftp = ssh.open_sftp()
+    localcert = os.getcwd() + "/certificates/redirectors/"+type+"/cert.pem"
+    localkey = os.getcwd() + "/certificates/redirectors/"+type+"/privkey.pem"
+
+    remote_path_cert = "/root/Mythic/C2_Profiles/HTTP/c2_code/cert.pem"
+    remote_path_key = "/root/Mythic/C2_Profiles/HTTP/c2_code/privkey.pem"
+
+    sftp.put(localcert,remote_path_cert)
+    sftp.put(localkey,remote_path_key)
+
+    sftp.close()
+
 
 def setup_api(ssh, ip,c2_type):
     if c2_type == 0:
@@ -109,7 +124,7 @@ def setup_mythic_listener(ip,type):
         code64 = base64.b64encode(code_raw.encode("utf-8"))
 
         json = {
-            "code": code64}
+            "code": code64.decode("utf-8")}
         requests.post(url, headers=headers, json=json,verify=False)
 
     for i in needed_profiles:
@@ -130,8 +145,9 @@ def firewall_rules(ssh):
     ip = requests.get('https://api.ipify.org').text
     (stdin, stdout, stderr) = ssh.exec_command("iptables -A INPUT -p tcp -s {IP_PROXY} --dport 7443 -j ACCEPT".replace("{IP_PROXY}", ip))
     ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command(
-        "iptables -A INPUT -p tcp -s {IP_PROXY} --dport 8080 -j ACCEPT".replace("{IP_PROXY}", ip))
+    (stdin, stdout, stderr) = ssh.exec_command("iptables -A INPUT -p tcp -s 127.0.0.1 --dport 7443 -j ACCEPT")
+    ssh_stdout = stdout.read()
+    (stdin, stdout, stderr) = ssh.exec_command("iptables -A INPUT -p tcp -s {IP_PROXY} --dport 8080 -j ACCEPT".replace("{IP_PROXY}", ip))
     ssh_stdout = stdout.read()
     (stdin, stdout, stderr) = ssh.exec_command(
         "iptables -A INPUT -p tcp -s {IP_PROXY} --dport 7443 -j ACCEPT".replace("{IP_PROXY}", config.ip_allowed_to_connect_c2))
