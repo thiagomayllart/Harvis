@@ -34,7 +34,7 @@ config_htaccess_dic = \
     {"short":"""
 RewriteEngine On
 RewriteCond %{REQUEST_URI} ^/({1})/?$ [NC]
-RewriteRule ^.*$ https://{2}%{REQUEST_URI} [P]
+RewriteRule ^.*$ https://{2}%{REQUEST_URI} [P,L]
 RewriteRule ^.*$ http://{3}? [L,R=302]
 """
                        }
