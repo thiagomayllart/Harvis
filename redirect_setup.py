@@ -38,11 +38,12 @@ def sftp_exists(sftp, path):
 
 def setup_redirector(type, domain, c2_list):
     global redirectors_config
+    config_VirtualHost = config.config_VirtualHost
     config_default_ssl_conf_new = config.config_default_ssl_conf.replace("{1}", domain)
     config_htaccess_dic_new = config.config_htaccess_dic[type].replace("{1}", config.agent_profiles[type]["URI"])
     config_htaccess_dic_new = config_htaccess_dic_new.replace("{2}",c2_list[type]["ip"])
     config_htaccess_dic_new = config_htaccess_dic_new.replace("{3}",config.domain_front_redirector[type])
-    redirectors_config[type] = {"config_default_ssl_conf":config_default_ssl_conf_new,"config_htaccess_dic":config_htaccess_dic_new}
+    redirectors_config[type] = {"config_default_ssl_conf":config_default_ssl_conf_new,"config_htaccess_dic":config_htaccess_dic_new,"config_VirtualHost":config_VirtualHost}
 
 def install_redir(ssh):
     print("Installing requirements")
@@ -127,6 +128,26 @@ def full_setup(ssh,c2_list, redirects, type, domain, pkey, ip):
     except:
         pass #000 file exists already
 
+
+    try:
+        f_read = sftp.open("/etc/apache2/sites-enabled/000-default-le-ssl.conf", "r")
+        file_lines = f_read.readlines()
+        f_read.close()
+        line1 = ""
+        for i in file_lines:
+            if ":443>" in i:
+                line1 = i
+                break
+
+        filedata = "".join(file_lines)
+        newfile = filedata.replace(line1, line1 + "\n" +redirectors_config[type]["config_VirtualHost"])
+
+        f = sftp.open("/etc/apache2/sites-enabled/000-default-le-ssl.conf", "wb")
+        f.write(newfile.encode(encoding='UTF-8'))
+        f.close()
+    except:
+        pass  # 000 file exists already
+
     f = sftp.open("/var/www/html/.htaccess", "wb")
     f.write(redirectors_config[type]["config_htaccess_dic"].encode(encoding='UTF-8'))
     f.close()
@@ -155,6 +176,8 @@ def full_setup(ssh,c2_list, redirects, type, domain, pkey, ip):
         os.mkdir(os.getcwd()+"/certificates/redirectors/")
     if not os.path.exists(os.getcwd() + "/certificates/redirectors/"+str(type)):
         os.mkdir(os.getcwd()+"/certificates/redirectors/"+str(type))
+
+    check_cert = False
     try:
         localpath = os.getcwd()+"/certificates/redirectors/"+str(type)+"/cert.pem"
         remotepath = "/etc/letsencrypt/live/www."+domain+"/cert.pem"
@@ -162,17 +185,19 @@ def full_setup(ssh,c2_list, redirects, type, domain, pkey, ip):
         localpath = os.getcwd()+"/certificates/redirectors/"+str(type)+"/privkey.pem"
         remotepath = "/etc/letsencrypt/live/www." + domain + "/privkey.pem"
         sftp.get(remotepath, localpath)
+        check_cert = True
     except Exception as e:
         print(e)
-    try:
-        localpath = os.getcwd() + "/certificates/redirectors/" + str(type) + "/cert.pem"
-        remotepath = "/etc/letsencrypt/live/" + domain + "/cert.pem"
-        sftp.get(remotepath,localpath)
-        localpath = os.getcwd() + "/certificates/redirectors/" + str(type) + "/privkey.pem"
-        remotepath = "/etc/letsencrypt/live/" + domain + "/privkey.pem"
-        sftp.get(remotepath,localpath)
-    except Exception as e:
-        print(e)
+    if (check_cert == False):
+        try:
+            localpath = os.getcwd() + "/certificates/redirectors/" + str(type) + "/cert.pem"
+            remotepath = "/etc/letsencrypt/live/" + domain + "/cert.pem"
+            sftp.get(remotepath,localpath)
+            localpath = os.getcwd() + "/certificates/redirectors/" + str(type) + "/privkey.pem"
+            remotepath = "/etc/letsencrypt/live/" + domain + "/privkey.pem"
+            sftp.get(remotepath,localpath)
+        except Exception as e:
+            print(e)
 
     sftp.close()
     ssh.exec_command("service apache2 restart")
