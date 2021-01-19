@@ -18,6 +18,7 @@ import redirect_setup
 import c2_setup
 import apivoid_handler
 import namecheap_handler
+from namecheapapi import DomainAPI
 import backup_handle
 import backup
 import json
@@ -322,6 +323,8 @@ def config_droplet(type, type_connect,c2_type):
                 c2_setup.install_c2(ssh,c2_type)
                 c2_setup.setup_api(ssh, ip,c2_type)
                 print("API KEY set")
+                print("Setting Certificates")
+                c2_setup.setup_certificate(ssh,type)
                 print("Setting Listener Profile")
                 c2_setup.setup_listener(ip,type,c2_type)
                 print("All Profiles Set")
