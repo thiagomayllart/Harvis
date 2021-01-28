@@ -910,33 +910,46 @@ def restricted_menu():
             if command == '2':
                 print(f"{bcolors.BOLD}[+] Select Domains to move to a haul: {bcolors.ENDC}")
                 actual_domains = set(domains) - set(domains_in_use) - set(burned_domains)
-                if len(actual_domains) > 0:
-                    for index, item in enumerate(actual_domains):
-                        print(str(index) + ") " + item)
-                    domain_option = input("Option: ")
+                if len(actual_domains) < len(domains_types):
+                    print("[+] You don't have enough domains for each haul. Buy another domain")
+                    sys.exit()
+                print("[+] You are configuring the following haul's: ")
+                for i in domains_types:
+                    print("[+] " + i)
 
-                    for i in domains_types:
-                        if domain_option in i:
-                            print(f"{bcolors.FAIL}[-] Domain is already in Haul: " + i+"{bcolors.ENDC}")
-                            print("[-] Remove that domain from the haul to allow moving it")
-                        else:
-                            print("Select Haul to move: ")
-                            for j in config.names:
-                                print("[+] " + j)
-                            haul_option = input("Option: ")
-                            actual_domains = list(actual_domains)
-                            domains_types[haul_option].append(actual_domains[int(domain_option)])
-                            domains.remove(actual_domains[int(domain_option)])
-                else:
-                    print("[+] No available domains in pool. Buy another domain")
+                print("")
+                for k in domains_types:
+                    actual_domains = set(domains) - set(domains_in_use) - set(burned_domains)
+                    print("[+] Select one of the available domains to move to the haul "+k)
+
+                    if len(actual_domains) > 0:
+                        for index, item in enumerate(actual_domains):
+                            print(str(index) + ") " + item)
+                        domain_option = input("Option: ")
+
+                        worked = False
+
+                        while worked == False:
+                            worked = True
+                            for i in domains_types:
+                                if domain_option in domains_types[i]:
+                                    print("Domain is already present in haul" +i)
+                                    print("Select another domain")
+                                    domain_option = input("Option: ")
+                                    worked = False
+
+
+                        print("Moving domain to haul "+k)
+                        actual_domains = list(actual_domains)
+                        domains_types[k].append(actual_domains[int(domain_option)])
+                        domains.remove(actual_domains[int(domain_option)])
+
         except Exception as e:
             print(e)
 
         check = True
 
-        for i in domains_types[haul_option]:
-            if len(i) == 0:
-                check = False
+
 
 
 
