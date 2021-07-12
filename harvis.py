@@ -93,7 +93,7 @@ def generate_image_from_snapshot(key_gb):
                 'Authorization': 'Bearer '+digital_ocean_token,
             }
 
-            data = '{"name":"Harvis","region":"nyc1","size":"s-1vcpu-1gb","image":"ubuntu-20-04-x64","ssh_keys":['+key_gb+'],"backups":false,"ipv6":true,"user_data":null,"private_networking":null,"volumes": null,"tags":["'+config.username+'"]}'
+            data = '{"name":"Harvis","region":"nyc1","size":"s-2vcpu-2gb","image":"ubuntu-20-04-x64","ssh_keys":['+key_gb+'],"backups":false,"ipv6":true,"user_data":null,"private_networking":null,"volumes": null,"tags":["'+config.username+'"]}'
             response = requests.post('https://api.digitalocean.com/v2/droplets', headers=headers, data=data)
             status = response.status_code
             while status != 202:
