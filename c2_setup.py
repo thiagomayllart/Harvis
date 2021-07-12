@@ -17,9 +17,15 @@ def install_mythic(ssh):
     ssh_stdout = stdout.read()
     (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; ./install_docker_ubuntu.sh")
     ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; ./install_agent_from_github.sh https://github.com/MythicAgents/Apollo")
+    (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; sudo ./mythic-cli install github https://github.com/MythicC2Profiles/http")
     ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; ./start_mythic.sh")
+    (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; sudo ./mythic-cli install github https://github.com/MythicAgents/Apollo")
+    ssh_stdout = stdout.read()
+    (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; sudo ./mythic-cli install github https://github.com/MythicAgents/apfell")
+    ssh_stdout = stdout.read()
+    (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; sudo ./mythic-cli install github https://github.com/MythicAgents/poseidon")
+    ssh_stdout = stdout.read()
+    (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; sudo ./mythic-cli mythic start")
     ssh_stdout = stdout.read()
 
 def setup_certificate(ssh,type):
