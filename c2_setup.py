@@ -20,8 +20,6 @@ def install_mythic(ssh):
     ssh_stdout = stdout.read()
     (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; sudo ./mythic-cli install github https://github.com/MythicAgents/Apollo -f")
     ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; sudo ./mythic-cli install github https://github.com/MythicAgents/apfell -f")
-    ssh_stdout = stdout.read()
     (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; sudo ./mythic-cli install github https://github.com/MythicAgents/poseidon -f")
     ssh_stdout = stdout.read()
     (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; sudo ./mythic-cli mythic start")
@@ -50,9 +48,11 @@ def setup_listener(ip,type, c2_type):
         setup_mythic_listener(ip,type)
         
         
-def get_password():
-    env = open("Mythic/.env","r")
+def get_password(ssh):
+    sftp = ssh.open_sftp()
+    env = sftp.open("Mythic/.env","r")
     lines = env.readlines()
+    env.close()
     for i in lines:
         if "MYTHIC_ADMIN_PASSWORD" in i:
             password = i.split("=")[1]
@@ -62,7 +62,7 @@ def setup_mythic_api(ssh,ip):
     import requests
     global api_key
 
-    password = get_password()
+    password = get_password(ssh)
     
     url = "https://{1}:7443/login"
     url = url.replace("{1}", ip)
