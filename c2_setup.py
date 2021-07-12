@@ -5,7 +5,6 @@ import base64
 import os
 
 
-csrf_token = ""
 api_key = ""
 
 def install_c2(ssh,c2_type):
@@ -52,33 +51,16 @@ def setup_listener(ip,type, c2_type):
 
 def setup_mythic_api(ssh,ip):
     import requests
-    global csrf_token,api_key
+    global api_key
 
-    url = "https://{1}:7443/login"
-    url = url.replace("{1}", ip)
-    headers = {"User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0",
+    
+    burp0_url = "https://{1}:7443/login"
+    burp0_headers = {"User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0",
                      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
                      "Accept-Language": "en-US,en;q=0.5", "Accept-Encoding": "gzip, deflate", "Connection": "close",
-                     "Upgrade-Insecure-Requests": "1"}
-    response = requests.get(url, headers=headers,verify=False)
-    soup = BeautifulSoup(response.text)
-    hidden_tags = soup.find_all("input", type="hidden")
-    for tag in hidden_tags:
-        if tag.attrs["name"] == "csrf_token":
-            csrf_token = tag.attrs["value"]
-            break
-
-    url = "https://{1}:7443/login"
-    url = url.replace("{1}", ip)
-    headers = {"User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0",
-                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                     "Accept-Language": "en-US,en;q=0.5", "Accept-Encoding": "gzip, deflate",
-                     "Content-Type": "application/x-www-form-urlencoded",
-                     "Connection": "close", "Upgrade-Insecure-Requests": "1"}
-
-    data = {"csrf_token": csrf_token, "username": "mythic_admin",
-                  "password": "mythic_password", "submit": "Sign In"}
-    response = requests.post(url, headers=headers, data=data, verify=False)
+                     "Upgrade-Insecure-Requests": "1","Content-Type": "application/x-www-form-urlencoded"}
+    burp0_data = {"username": "mythic_admin", "password": ""}
+    response = requests.post(burp0_url, headers=burp0_headers, data=burp0_data,verify=False)
     access_token = response.cookies["access_token"]
 
     url = "https://{1}:7443/api/v1.4/apitokens/"
