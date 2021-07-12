@@ -48,19 +48,30 @@ def setup_api(ssh, ip,c2_type):
 def setup_listener(ip,type, c2_type):
     if c2_type == 0:
         setup_mythic_listener(ip,type)
+        
+        
+def get_password():
+    env = open("Mythic/.env","r")
+    lines = env.readlines()
+    for i in lines:
+        if "MYTHIC_ADMIN_PASSWORD" in i:
+            password = i.split("=")[1]
+            return password
 
 def setup_mythic_api(ssh,ip):
     import requests
     global api_key
 
+    password = get_password()
     
-    burp0_url = "https://{1}:7443/login"
-    burp0_headers = {"User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0",
+    url = "https://{1}:7443/login"
+    url = url.replace("{1}", ip)
+    headers = {"User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0",
                      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
                      "Accept-Language": "en-US,en;q=0.5", "Accept-Encoding": "gzip, deflate", "Connection": "close",
                      "Upgrade-Insecure-Requests": "1","Content-Type": "application/x-www-form-urlencoded"}
-    burp0_data = {"username": "mythic_admin", "password": ""}
-    response = requests.post(burp0_url, headers=burp0_headers, data=burp0_data,verify=False)
+    data = {"username": "mythic_admin", "password": password}
+    response = requests.post(url, headers=headers, data=data,verify=False)
     access_token = response.cookies["access_token"]
 
     url = "https://{1}:7443/api/v1.4/apitokens/"
@@ -95,9 +106,9 @@ def setup_mythic_listener(ip,type):
 
     for i in needed_profiles:
         name = needed_profiles[i]
-
-        url = "https://{1}:7443/api/v1.4/c2profiles/{2}/files/container_config_upload"
-        url = url.replace("{1}", ip).replace("{2}",str(i))
+    
+        url = "https://{1}:7443/api/v1.4/c2profile_upload_file_webhook"
+        url = url.replace("{1}", ip)
         headers = {"User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0",
                          "Accept": "*/*", "Accept-Language": "en-US,en;q=0.5", "Accept-Encoding": "gzip, deflate",
                          "content-type": "application/json",
@@ -111,21 +122,21 @@ def setup_mythic_listener(ip,type):
 
         code64 = base64.b64encode(code_raw.encode("utf-8"))
 
-        json = {
-            "code": code64.decode("utf-8")}
+        json = {"input": {"data": code64.decode("utf-8"), "file_path": "config.json", "id": str(i)}}
         requests.post(url, headers=headers, json=json,verify=False)
 
     for i in needed_profiles:
 
-        url = "https://{1}:7443/api/v1.4/c2profiles/{2}/start"
-        url = url.replace("{1}",ip).replace("{2}", str(i))
-
+        url = "https://{1}:7443/api/v1.4/start_stop_profile_webhook"
+        url = url.replace("{1}",ip)
+        
         headers = {"User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0",
                          "Accept": "*/*", "Accept-Language": "en-US,en;q=0.5", "Accept-Encoding": "gzip, deflate",
                          "content-type": "application/json",
                          "apitoken": api_key,
                          "Connection": "close"}
-        requests.get(url, headers=headers,verify=False)
+        json={"input": {"action": "start", "id": str(i)}}
+        requests.post(url, headers=headers, json=json)
 
 def firewall_rules(ssh):
     (stdin, stdout, stderr) = ssh.exec_command("iptables -A INPUT -p tcp -s {IP_PROXY} --dport 7443 -j ACCEPT".replace("{IP_PROXY}", config.ip_allowed_to_connect_c2))
