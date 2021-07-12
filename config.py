@@ -44,7 +44,7 @@ agent_profiles = {"short":{"URI":"data|index"}}
 
 domain_front_redirector = {"short":"www.example.com"}
 
-c2_profiles = {"short":[{"name":"HTTP","config":"""{
+c2_profiles = {"short":[{"name":"http","config":"""{
   "instances": [
   {
     "ServerHeaders": {
@@ -60,7 +60,7 @@ c2_profiles = {"short":[{"name":"HTTP","config":"""{
     "debug": true
     }
   ]
-}"""}],"long":[{"name":"HTTP","config":"""{
+}"""}],"long":[{"name":"http","config":"""{
   "instances": [
   {
     "ServerHeaders": {
