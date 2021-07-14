@@ -57,7 +57,7 @@ def get_password(ssh):
     for i in lines:
         if "MYTHIC_ADMIN_PASSWORD" in i:
             password = i.split("=")[1]
-            return password.replace("\n")
+            return password.replace("\n","")
 
 def setup_mythic_api(ssh,ip):
     import requests
