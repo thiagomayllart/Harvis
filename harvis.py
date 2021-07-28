@@ -93,7 +93,7 @@ def generate_image_from_snapshot(key_gb):
                 'Authorization': 'Bearer '+digital_ocean_token,
             }
 
-            data = '{"name":"Harvis","region":"nyc1","size":"s-1vcpu-1gb","image":"ubuntu-16-04-x64","ssh_keys":['+key_gb+'],"backups":false,"ipv6":true,"user_data":null,"private_networking":null,"volumes": null,"tags":["'+config.username+'"]}'
+            data = '{"name":"Harvis","region":"nyc1","size":"s-2vcpu-2gb","image":"ubuntu-20-04-x64","ssh_keys":['+key_gb+'],"backups":false,"ipv6":true,"user_data":null,"private_networking":null,"volumes": null,"tags":["'+config.username+'"]}'
             response = requests.post('https://api.digitalocean.com/v2/droplets', headers=headers, data=data)
             status = response.status_code
             while status != 202:
@@ -320,7 +320,8 @@ def config_droplet(type, type_connect,c2_type):
                 ssh.connect(ip, username='root', pkey=k)
                 worked = True
                 c2_setup.install_c2(ssh,c2_type)
-                c2_setup.setup_api(ssh, ip,c2_type)
+                password = c2_setup.setup_api(ssh,ip,c2_type)
+                c2_list[type]['password'] = password
                 print("API KEY set")
                 print("Setting Certificates")
                 c2_setup.setup_certificate(ssh,type)
@@ -667,7 +668,7 @@ def discard_components():
 
 def show_infra():
     for i in redirects:
-        print("Redirect: "+redirects[i]["ip"]+ " >>>>>>> "+"C2: "+c2_list[i]["ip"])
+        print("Redirect: "+redirects[i]["ip"]+ " >>>>>>> "+"C2: "+c2_list[i]["ip"], "Credentials: mythic_admin/"+c2_list[i]["password"])
 
 def set_apis():
     print("Choose API Key to set: ")
