@@ -118,9 +118,9 @@ def setup_mythic_listener(ip,type):
                          "apitoken": api_key}
 
         code_raw = ""
-        for i in profile_config:
-            if i["name"] == name:
-                code_raw = i["config"]
+        for j in profile_config:
+            if j["name"] == name:
+                code_raw = j["config"]
                 break
 
         code64 = base64.b64encode(code_raw.encode("utf-8"))
