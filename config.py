@@ -56,27 +56,13 @@ c2_profiles = {"short":[{"name":"http","config":"""{
     },
     "port": 443,
     "key_path": "privkey.pem",
-    "cert_path": "cert.pem",
-    "debug": true
+    "cert_path": "fullchain.pem",
+    "debug": false,
+    "use_ssl": true
     }
   ]
-}"""}],"long":[{"name":"http","config":"""{
-  "instances": [
-  {
-    "ServerHeaders": {
-      "Server": "NetDNA-cache/2.2",
-      "Cache-Control": "max-age=0, no-cache",
-      "Pragma": "no-cache",
-      "Connection": "keep-alive",
-      "Content-Type": "application/javascript; charset=utf-8"
-    },
-    "port": 443,
-    "key_path": "privkey.pem",
-    "cert_path": "cert.pem",
-    "debug": true
-    }
-  ]
-}"""}] }
+}
+"""}] }
 
 check_infra_state = 3600 #secs
 
