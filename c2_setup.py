@@ -69,7 +69,7 @@ def get_password(ssh):
     for i in lines:
         if "MYTHIC_ADMIN_PASSWORD" in i:
             password = i.split("=")[1]
-            return password.replace("\n", "").replace("\n", "\"")
+            return password.replace("\n", "").replace("\"", "").replace("\'","")
 
 
 def setup_mythic_api(ssh, ip):
@@ -84,8 +84,8 @@ def setup_mythic_api(ssh, ip):
                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
                "Accept-Language": "en-US,en;q=0.5", "Accept-Encoding": "gzip, deflate", "Connection": "close",
                "Upgrade-Insecure-Requests": "1", "Content-Type": "application/x-www-form-urlencoded"}
-    data = {"username": "mythic_admin", "password": password}
-    response = requests.post(url, headers=headers, data=data, verify=False)
+    json = {"username": "mythic_admin", "password": password}
+    response = requests.post(url, headers=headers, json=json, verify=False)
     access_token = response.cookies["access_token"]
 
     url = "https://{1}:7443/api/v1.4/apitokens/"
@@ -104,15 +104,16 @@ def setup_mythic_api(ssh, ip):
 
 
 def setup_mythic_listener(ip, type):
-    url = "https://{1}:7443/graphql"
+    url = "https://{1}:7443/graphql/"
     url = url.replace("{1}", ip)
     headers = {"User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0",
                "Accept": "*/*", "Accept-Language": "en-US,en;q=0.5", "Accept-Encoding": "gzip, deflate",
-               "apitoken": api_key,
+               "content-type": "application/json",
+               "Authorization": "Bearer "+api_key,
                "Connection": "close"}
     json_data = {"operationName": "GetC2AndPayloadType",
                  "query": "query GetC2AndPayloadType {\n  c2profile(where: {deleted: {_eq: false}}) {\n    name\n    id\n    __typename\n  }\n  payloadtype(where: {deleted: {_eq: false}, wrapper: {_eq: false}}) {\n    ptype\n    id\n    payloadtypec2profiles {\n      c2profile {\n        name\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  wrappers: payloadtype(where: {deleted: {_eq: false}, wrapper: {_eq: true}}) {\n    ptype\n    id\n    wrap_these_payload_types {\n      wrapped {\n        ptype\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n"}
-    response = requests.get(url, headers=headers, json=json_data, verify=False)
+    response = requests.post(url, headers=headers, json=json_data, verify=False)
     data = response.json()["data"]["c2profile"]
     needed_profiles = {}
     profile_config = config.c2_profiles[type]
@@ -124,12 +125,12 @@ def setup_mythic_listener(ip, type):
 
     for i in needed_profiles:
         name = needed_profiles[i]
-        url = "https://{1}:7443/graphql"
+        url = "https://{1}:7443/graphql/"
         url = url.replace("{1}", ip)
         headers = {"User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0",
                    "Accept": "*/*", "Accept-Language": "en-US,en;q=0.5", "Accept-Encoding": "gzip, deflate",
                    "content-type": "application/json",
-                   "apitoken": api_key}
+                   "Authorization": "Bearer "+api_key}
         code_raw = ""
         for j in profile_config:
             if j["name"] == name:
@@ -144,13 +145,13 @@ def setup_mythic_listener(ip, type):
         requests.post(url, headers=headers, json=json, verify=False)
 
     for i in needed_profiles:
-        url = "https://{1}:7443/graphql"
+        url = "https://{1}:7443/graphql/"
         url = url.replace("{1}", ip)
 
         headers = {"User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0",
                    "Accept": "*/*", "Accept-Language": "en-US,en;q=0.5", "Accept-Encoding": "gzip, deflate",
                    "content-type": "application/json",
-                   "apitoken": api_key,
+                   "Authorization": "Bearer "+api_key,
                    "Connection": "close"}
         json = {"operationName": "StartStopProfile",
                 "query": "mutation StartStopProfile($id: Int!, $action: String) {\n  startStopProfile(id: $id, action: $action) {\n    status\n    error\n    output\n    __typename\n  }\n}\n",
