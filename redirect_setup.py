@@ -79,11 +79,11 @@ def check_propagation(ssh,c2_list, redirects, type, domain, pkey, ip):
     propagated = apivoid_handler.check_propagation(domain, redirects[type]["ip"])
     return propagated
 
-def full_setup(ssh,c2_list, redirects, type, domain, pkey, ip):
+def full_setup(ssh,c2_list, redirects, type, domain, pkey, ip,subdomain):
     print("Setting SSL certificates... this might take a while...")
     sftp = ssh.open_sftp()
     f = sftp.open("ssl_config.sh", "wb")
-    f.write("(echo \"A\"; echo \"Y\"; echo \"3\"; echo \"2\";) | certbot -d " +"www."+ domain +","+domain+" --apache --register-unsafely-without-email")
+    f.write("(echo \"A\"; echo \"Y\"; echo \"3\"; echo \"2\";) | certbot -d " +subdomain+"."+ domain +","+domain+" --apache --register-unsafely-without-email")
     f.close()
 
     print("Waiting DNS propagations! We will check every hour")
@@ -119,7 +119,7 @@ def full_setup(ssh,c2_list, redirects, type, domain, pkey, ip):
         if sftp_exists(sftp,"/etc/letsencrypt/live/"+domain):
             newfile = filedata.replace(line1+line2,redirectors_config[type]["config_default_ssl_conf"])
         else:
-            newfile = filedata.replace(line1 + line2, redirectors_config[type]["config_default_ssl_conf"].replace(domain,"www."+domain))
+            newfile = filedata.replace(line1 + line2, redirectors_config[type]["config_default_ssl_conf"].replace(domain,subdomain+"."+domain))
 
 
         f = sftp.open("/etc/apache2/sites-enabled/default-ssl.conf", "wb")
@@ -180,10 +180,10 @@ def full_setup(ssh,c2_list, redirects, type, domain, pkey, ip):
     check_cert = False
     try:
         localpath = os.getcwd()+"/certificates/redirectors/"+str(type)+"/cert.pem"
-        remotepath = "/etc/letsencrypt/live/www."+domain+"/cert.pem"
+        remotepath = "/etc/letsencrypt/live/"+subdomain+"."+domain+"/cert.pem"
         sftp.get(remotepath, localpath)
         localpath = os.getcwd()+"/certificates/redirectors/"+str(type)+"/privkey.pem"
-        remotepath = "/etc/letsencrypt/live/www." + domain + "/privkey.pem"
+        remotepath = "/etc/letsencrypt/live/"+subdomain+"."+domain+"/privkey.pem"
         sftp.get(remotepath, localpath)
         check_cert = True
     except Exception as e:
@@ -234,5 +234,5 @@ def firewall_rules(ssh, ip):
     (stdin, stdout, stderr) = ssh.exec_command("iptables -A FORWARD -p udp -d $IP_C2 --dport 1:65535 -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT".replace("$IP_C2",ip))
     ssh_stdout = stdout.read()
 
-def setDNSInfo(domain,ip):
-    namecheap_handler.set_redirect_records(domain,ip)
+def setDNSInfo(domain,ip,subdomain):
+    namecheap_handler.set_redirect_records(domain,ip,subdomain)

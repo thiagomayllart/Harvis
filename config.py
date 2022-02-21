@@ -35,14 +35,14 @@ config_htaccess_dic = \
 RewriteEngine On
 RewriteCond %{REQUEST_URI} ^/({1})/?$ [NC]
 RewriteRule ^.*$ https://{2}%{REQUEST_URI} [P,L]
-RewriteRule ^.*$ http://{3}? [L,R=302]
+RewriteRule ^.*$ {3}? [L,R=302]
 """
                        }
 
 
 agent_profiles = {"short":{"URI":"data|index"}}
 
-domain_front_redirector = {"short":"www.example.com"}
+domain_front_redirector = {"short":"https://www.example.com"}
 
 c2_profiles = {"short":[{"name":"http","config":"""{
   "instances": [

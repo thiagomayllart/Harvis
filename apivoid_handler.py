@@ -32,12 +32,16 @@ def check_burned_domain(domains_in_use):
     global estimated_queries
     domains_brn = []
     for i in domains_in_use:
-        r = requests.get(
-            "https://endpoint.apivoid.com/domainbl/v1/pay-as-you-go/?key=" +config.apivoid_key +"&host="+i)
-        results = json.loads(r.text)
-        blacklist = results["data"]["report"]["blacklists"]["engines"]
         blacklist_list = []
-        estimated_queries = results["estimated_queries"]
+        blacklist = {}
+        try:
+            r = requests.get(
+                "https://endpoint.apivoid.com/domainbl/v1/pay-as-you-go/?key=" +config.apivoid_key +"&host="+i)
+            results = json.loads(r.text)
+            blacklist = results["data"]["report"]["blacklists"]["engines"]
+            estimated_queries = results["estimated_queries"]
+        except:
+            pass
        # blacklist[6]["detected"] = True
         for j in blacklist:
             if blacklist[j]["detected"] == True:
