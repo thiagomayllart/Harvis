@@ -22,6 +22,7 @@ import backup_handle
 import backup
 import json
 
+
 log = {}
 message_queu = {}
 #action 1 = redirector issue
@@ -32,6 +33,7 @@ message_queu = {}
 domains_types = {}
 domains = []
 domains_in_use = []
+menu_open = False
 
 
 api = None #api object
@@ -285,22 +287,22 @@ def config_droplet(type, type_connect,c2_type):
             path = os.getcwd()
             k = paramiko.RSAKey.from_private_key_file(path +'/private.pem')
             if type_connect == 1:
+                domain = domains_types[type][0]
                 ip = redirects[type]['ip']
                 ssh.connect(ip, username='root', pkey=k)
                 worked = True
-                print("Configuring redirector")
+                print("Configuring redirector: "+domain)
+                print("Set subdomain for the redirector: "+domain)
+                subdomain = input(">")
                 redirect_setup.install_redir(ssh)
                 print("Setting SSL certificates... this might take a while...")
                 print("Waiting DNS propagations! We will check every hour")
-                domain = ""
 
                 #TO-DOs make possible to add more types of haul
-
                 domain = domains_types[type].pop()
                 domains_in_use.append(domain)
                 redirects[type]["domain"] = domain
-
-                redirect_setup.setDNSInfo(domain,redirects[type]["ip"])
+                redirect_setup.setDNSInfo(domain,redirects[type]["ip"],subdomain)
                 while redirect_setup.check_propagation(ssh, c2_list, redirects, type, domain, k, ip) == False:
                     time.sleep(900)
                     ssh.close()
@@ -311,7 +313,7 @@ def config_droplet(type, type_connect,c2_type):
                             ssh_work = True
                         except Exception as e:
                             print(e)
-                redirect_setup.full_setup(ssh, c2_list, redirects, type, domain, k, ip)
+                redirect_setup.full_setup(ssh, c2_list, redirects, type, domain, k, ip,subdomain)
                 ssh.close()
                 print("Redirectors Set")
             if type_connect == 2:
@@ -333,14 +335,18 @@ def config_droplet(type, type_connect,c2_type):
                 c2_setup.firewall_rules(ssh)
                 #run command
             if type_connect == 3:
+                domain = temp_redirects[type][0]
+                domains_in_use.append(domain)
+                temp_redirects[type]["domain"] = domain
                 ip = temp_redirects[type]['ip']
                 ssh.connect(ip, username='root', pkey=k)
                 worked = True
-                print("Configuring Temporary redirector")
+                print("Configuring Temporary redirector: "+domain)
+                print("Set subdomain for the redirector: "+domain)
+                subdomain = input(">")
                 redirect_setup.install_redir(ssh)
                 print("Setting SSL certificates... this might take a while...")
                 print("Waiting DNS propagations! We will check every hour")
-                domain = ""
 
                 #TO-DOs make possible to add more types of haul
 
@@ -348,7 +354,7 @@ def config_droplet(type, type_connect,c2_type):
                 domains_in_use.append(domain)
                 temp_redirects[type]["domain"] = domain
 
-                redirect_setup.setDNSInfo(domain,temp_redirects[type]["ip"])
+                redirect_setup.setDNSInfo(domain,temp_redirects[type]["ip"],subdomain)
                 while redirect_setup.check_propagation(ssh, c2_list, temp_redirects, type, domain, k, ip) == False:
                     time.sleep(900)
                     ssh.close()
@@ -359,7 +365,7 @@ def config_droplet(type, type_connect,c2_type):
                             ssh_work = True
                         except Exception as e:
                             print(e)
-                redirect_setup.full_setup(ssh, c2_list, temp_redirects, type, domain, k, ip)
+                redirect_setup.full_setup(ssh, c2_list, temp_redirects, type, domain, k, ip,subdomain)
                 ssh.close()
                 print("Redirectors Set")
             if type_connect == 4:
@@ -443,7 +449,7 @@ def update_operation(domains_brn, c2_brn, redirects_brn, domains_in_use, c2_list
 
 
 def set_and_check():
-    global domains_brn, c2_brn, redirects_brn, domains_in_use, c2_list, redirects,c2_mythic, domains, domains_types, burned_domains,temp_c2_list,temp_redirects,log,message_queu,key_gb
+    global menu_open,domains_brn, c2_brn, redirects_brn, domains_in_use, c2_list, redirects,c2_mythic, domains, domains_types, burned_domains,temp_c2_list,temp_redirects,log,message_queu,key_gb
 
     if(backup_restored == True):
         #create redirectors
@@ -461,7 +467,7 @@ def set_and_check():
         for i in config.names:
             config_droplet(i,2,0)
 
-
+    menu_open = True
     while True:
         domains_brn = apivoid_handler.check_burned_domain(domains_in_use)
         c2_brn = apivoid_handler.check_burned_c2_list(c2_list)
@@ -754,7 +760,8 @@ def menu():
     while True:
 
         backup_handle.save_backup(domains_types, domains, burned_domains,temp_c2_list, temp_redirects, redirects, c2_list, domains_in_use, log, message_queu, key_gb)
-
+        while(menu_open == False):
+            time.sleep(1)
         print("[+] Choose an option:")
         print("1) Buy domain")
         print("2) Move domain to a haul")
