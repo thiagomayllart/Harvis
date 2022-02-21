@@ -15,7 +15,7 @@ contact_details = dict(
     EmailAddress='jack.trotter@example.com'
 )
 
-def set_redirect_records(domain, ip):
+def set_redirect_records(domain, ip,subdomain):
     info = api.list_records(domain)
     for i in info:
         type = i["type"]
@@ -24,7 +24,7 @@ def set_redirect_records(domain, ip):
         api.delete_record(domain,type, address,name)
     api.add_record(domain, 'A', ip)
 
-    api.add_record(domain, 'A', ip, 'www')
+    api.add_record(domain, 'A', ip, subdomain)
 
 
 def buy_domain(domain_name):
