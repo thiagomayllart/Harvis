@@ -84,7 +84,7 @@ def setup_mythic_api(ssh, ip):
                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
                "Accept-Language": "en-US,en;q=0.5", "Accept-Encoding": "gzip, deflate", "Connection": "close",
                "Upgrade-Insecure-Requests": "1", "Content-Type": "application/x-www-form-urlencoded"}
-    json = {"username": "username", "password": password}
+    json = {"username": "mythic_admin", "password": password}
     response = requests.post(url, headers=headers, json=json, verify=False)
     access_token = response.cookies["access_token"]
 
