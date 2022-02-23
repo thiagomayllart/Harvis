@@ -76,7 +76,15 @@ def install_redir(ssh):
     print("Requirements Installed")
 
 def check_propagation(ssh,c2_list, redirects, type, domain, pkey, ip):
-    propagated = apivoid_handler.check_propagation(domain, redirects[type]["ip"])
+    worked = False
+    propagated = False
+    while worked == False:
+        try:
+            propagated = apivoid_handler.check_propagation(domain, redirects[type]["ip"])
+            worked = True
+        except:
+            time.sleep(5)
+            pass
     return propagated
 
 def full_setup(ssh,c2_list, redirects, type, domain, pkey, ip,subdomain):
