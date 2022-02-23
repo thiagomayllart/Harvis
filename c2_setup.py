@@ -1,3 +1,5 @@
+import time
+
 from bs4 import BeautifulSoup
 import requests
 import config
@@ -113,8 +115,15 @@ def setup_mythic_listener(ip, type):
                "Connection": "close"}
     json_data = {"operationName": "GetC2AndPayloadType",
                  "query": "query GetC2AndPayloadType {\n  c2profile(where: {deleted: {_eq: false}}) {\n    name\n    id\n    __typename\n  }\n  payloadtype(where: {deleted: {_eq: false}, wrapper: {_eq: false}}) {\n    ptype\n    id\n    payloadtypec2profiles {\n      c2profile {\n        name\n        id\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  wrappers: payloadtype(where: {deleted: {_eq: false}, wrapper: {_eq: true}}) {\n    ptype\n    id\n    wrap_these_payload_types {\n      wrapped {\n        ptype\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n"}
-    response = requests.post(url, headers=headers, json=json_data, verify=False)
-    data = response.json()["data"]["c2profile"]
+    worked = False
+    data = []
+    while worked == False:
+        try:
+            response = requests.post(url, headers=headers, json=json_data, verify=False)
+            data = response.json()["data"]["c2profile"]
+            worked = True
+        except:
+            time.sleep(5)
     needed_profiles = {}
     profile_config = config.c2_profiles[type]
     for i in profile_config:
@@ -142,7 +151,14 @@ def setup_mythic_listener(ip, type):
         json = {"operationName": "setProfileConfiguration",
                 "query": "mutation setProfileConfiguration($id: Int!, $file_path: String!, $data: String!) {\n  uploadContainerFile(id: $id, file_path: $file_path, data: $data) {\n    status\n    error\n    filename\n    __typename\n  }\n}\n",
                 "variables": {"data": code64.decode("utf-8"), "file_path": "config.json", "id": str(i)}}
-        requests.post(url, headers=headers, json=json, verify=False)
+        worked = False
+        while worked == False:
+            try:
+                response = requests.post(url, headers=headers, json=json, verify=False)
+                if response.status_code == 200:
+                    worked = True
+            except:
+                time.sleep(5)
 
     for i in needed_profiles:
         url = "https://{1}:7443/graphql/"
@@ -156,11 +172,25 @@ def setup_mythic_listener(ip, type):
         json = {"operationName": "StartStopProfile",
                 "query": "mutation StartStopProfile($id: Int!, $action: String) {\n  startStopProfile(id: $id, action: $action) {\n    status\n    error\n    output\n    __typename\n  }\n}\n",
                 "variables": {"action": "stop", "id": i}}
-        requests.post(url, headers=headers, json=json, verify=False)
+        worked = False
+        while worked == False:
+            try:
+                response = requests.post(url, headers=headers, json=json, verify=False)
+                if response.status_code == 200:
+                    worked = True
+            except:
+                time.sleep(5)
         json = {"operationName": "StartStopProfile",
                 "query": "mutation StartStopProfile($id: Int!, $action: String) {\n  startStopProfile(id: $id, action: $action) {\n    status\n    error\n    output\n    __typename\n  }\n}\n",
                 "variables": {"action": "start", "id": i}}
-        requests.post(url, headers=headers, json=json, verify=False)
+        worked = False
+        while worked == False:
+            try:
+                response = requests.post(url, headers=headers, json=json, verify=False)
+                if response.status_code == 200:
+                    worked = True
+            except:
+                time.sleep(5)
 
 
 def firewall_rules(ssh):
