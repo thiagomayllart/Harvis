@@ -43,6 +43,7 @@ temp_c2_list = {}
 temp_redirects = {}
 
 burned_domains = []
+subdomains_redirectors = {}
 
 redirects = {}
 c2_list = {}
@@ -292,8 +293,6 @@ def config_droplet(type, type_connect,c2_type):
                 ssh.connect(ip, username='root', pkey=k)
                 worked = True
                 print("Configuring redirector: "+domain)
-                print("Set subdomain for the redirector: "+domain)
-                subdomain = input(">")
                 redirect_setup.install_redir(ssh)
                 print("Setting SSL certificates... this might take a while...")
                 print("Waiting DNS propagations! We will check every hour")
@@ -302,6 +301,7 @@ def config_droplet(type, type_connect,c2_type):
                 domain = domains_types[type].pop()
                 domains_in_use.append(domain)
                 redirects[type]["domain"] = domain
+                subdomain = subdomains_redirectors[type][domain]
                 redirect_setup.setDNSInfo(domain,redirects[type]["ip"],subdomain)
                 while redirect_setup.check_propagation(ssh, c2_list, redirects, type, domain, k, ip) == False:
                     time.sleep(900)
@@ -342,8 +342,6 @@ def config_droplet(type, type_connect,c2_type):
                 ssh.connect(ip, username='root', pkey=k)
                 worked = True
                 print("Configuring Temporary redirector: "+domain)
-                print("Set subdomain for the redirector: "+domain)
-                subdomain = input(">")
                 redirect_setup.install_redir(ssh)
                 print("Setting SSL certificates... this might take a while...")
                 print("Waiting DNS propagations! We will check every hour")
@@ -353,7 +351,7 @@ def config_droplet(type, type_connect,c2_type):
                 domain = domains_types[type].pop()
                 domains_in_use.append(domain)
                 temp_redirects[type]["domain"] = domain
-
+                subdomain = subdomains_redirectors[type][domain]
                 redirect_setup.setDNSInfo(domain,temp_redirects[type]["ip"],subdomain)
                 while redirect_setup.check_propagation(ssh, c2_list, temp_redirects, type, domain, k, ip) == False:
                     time.sleep(900)
@@ -365,6 +363,7 @@ def config_droplet(type, type_connect,c2_type):
                             ssh_work = True
                         except Exception as e:
                             print(e)
+                subdomain = subdomains_redirectors[type][domain]
                 redirect_setup.full_setup(ssh, c2_list, temp_redirects, type, domain, k, ip,subdomain)
                 ssh.close()
                 print("Redirectors Set")
@@ -951,6 +950,12 @@ def restricted_menu():
                         actual_domains = list(actual_domains)
                         domains_types[k].append(actual_domains[int(domain_option)])
                         domains.remove(actual_domains[int(domain_option)])
+                for k in domains_types:
+                    for d in domains_types[k]:
+                        print("Set subdomain for the redirector: " + d)
+                        subdomain = input(">")
+                        subdomains_redirectors[k] = {}
+                        subdomains_redirectors[k][d] = subdomain
 
         except Exception as e:
             print(e)
