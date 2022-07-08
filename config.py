@@ -2,7 +2,7 @@ names = {"short":[]}
 
 digital_ocean_token = ""
 
-namecheap_username = "Harvis"
+namecheap_username = ""
 namecheap_key = ""
 namecheap_ipaddress = "0.0.0.0"
 
@@ -34,7 +34,7 @@ config_htaccess_dic = \
     {"short":"""
 RewriteEngine On
 RewriteCond %{REQUEST_URI} ^/({1})/?$ [NC]
-RewriteRule ^.*$ https://{2}%{REQUEST_URI} [P,L]
+RewriteRule ^.*$ http://127.0.0.1:8080%{REQUEST_URI} [P,L]
 RewriteRule ^.*$ {3}? [L,R=302]
 """
                        }
@@ -54,11 +54,11 @@ c2_profiles = {"short":[{"name":"http","config":"""{
       "Connection": "keep-alive",
       "Content-Type": "application/javascript; charset=utf-8"
     },
-    "port": 443,
-    "key_path": "privkey.pem",
-    "cert_path": "fullchain.pem",
+    "port": 80,
+    "key_path": "",
+    "cert_path": "",
     "debug": false,
-    "use_ssl": true
+    "use_ssl": false
     }
   ]
 }
@@ -66,6 +66,6 @@ c2_profiles = {"short":[{"name":"http","config":"""{
 
 check_infra_state = 3600 #secs
 
-ip_allowed_to_connect_c2 = "127.0.0.1"
+ip_allowed_to_connect_c2 = ""
 
-username = "hunt3r547" # =D
+username = "" # =D
