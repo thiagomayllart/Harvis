@@ -24,9 +24,8 @@ Harvis has several features to help you organize your available domains and redi
 * **Multiple Redirector Configuration** - Each redirector can have a different .htaccess configuration, defined by the operator.
 * **Customizable Firewall Rules** - Harvis comes with default firewall rules for the redirectors and C2's, however, this feature is easily customizable.
 * **Priority System** - Each haul has a queue system, in a way that the new redirector will replace the blacklisted one with the domains in the queue.
-* **Priority System** - Automatically replace your droplets: Harvis identifies any blacklisted redirector and print the results to the operator. It allows the operator to create a temporary droplet to replace the blacklisted one. It does not configure the migration of any active agents, since the way the agent will be migrated/spawned to connect to the new domain might be a very personal decision in an engagement. After creating the temporary droplet, it allows you to migrate any active agents and kill the older redirector.
-* **Priority System** - If somehow the script crashes, all the information will be saved in the backup.py file. Restarting the script will recover all your infrastructure as it was.
-* 
+* **Replace Blacklisted** - Automatically replace your droplets: Harvis identifies any blacklisted redirector and print the results to the operator. It allows the operator to create a temporary droplet to replace the blacklisted one. It does not configure the migration of any active agents, since the way the agent will be migrated/spawned to connect to the new domain might be a very personal decision in an engagement. After creating the temporary droplet, it allows you to migrate any active agents and kill the older redirector.
+* **Backup** - If somehow the script crashes, all the information will be saved in the backup.py file. Restarting the script will recover all your infrastructure as it was.
 
 ### Installation
 
