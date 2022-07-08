@@ -39,14 +39,13 @@ menu_open = False
 api = None #api object
 #temporary list to keep droplets
 #waiting for migration
-temp_c2_list = {}
 temp_redirects = {}
 
 burned_domains = []
 subdomains_redirectors = {}
 
 redirects = {}
-c2_list = {}
+c2 = ""
 
 found_keys = []
 digital_ocean_token = config.digital_ocean_token
@@ -57,6 +56,8 @@ backup_restored = False
 
 c2_mythic = 1
 c2_covenant = 2
+
+firewall_ids = []
 
 key_gb = ""
 
@@ -124,15 +125,26 @@ def get_droplet(id_droplet):
 
 
 def del_droplet(id_droplet):
-    id_droplet = int(id_droplet)
     headers = {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer '+digital_ocean_token,
     }
     response = requests.delete('https://api.digitalocean.com/v2/droplets/' + str(id_droplet), headers=headers)
     status = response.status_code
-    while status != 204:
+    while status != 204 and status != 404:
         response = requests.delete('https://api.digitalocean.com/v2/droplets/'+str(id_droplet), headers=headers)
+        status = response.status_code
+        time.sleep(2)
+
+def del_firewall(id_firewall):
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer '+digital_ocean_token,
+    }
+    response = requests.delete('https://api.digitalocean.com/v2/firewalls/' + str(id_firewall), headers=headers)
+    status = response.status_code
+    while status != 204 and status != 404:
+        response = requests.delete('https://api.digitalocean.com/v2/firewalls/'+str(id_firewall), headers=headers)
         status = response.status_code
         time.sleep(2)
 
@@ -144,7 +156,7 @@ def del_ssh(id_key):
 
     response = requests.delete('https://api.digitalocean.com/v2/account/keys/'+str(id_key), headers=headers)
     status = response.status_code
-    while status != 204:
+    while status != 204 and status != 404:
         response = requests.delete('https://api.digitalocean.com/v2/account/keys/'+str(id_key), headers=headers)
         status = response.status_code
         time.sleep(2)
@@ -222,7 +234,7 @@ def connect_to_new_droplet(dropletip):
 
 
 def create_new_droplet(type,type_droplet):
-    global c2_list, redirects,key_gb
+    global c2, redirects,key_gb
     result_creation = generate_image_from_snapshot(key_gb)
     id_droplet = id_response(result_creation)
     ip_droplet = ip_response(result_creation, id_droplet)
@@ -230,13 +242,10 @@ def create_new_droplet(type,type_droplet):
     if type_droplet == 1:
         redirects[type] = droplet
     if type_droplet == 2:
-        c2_list[type] = droplet
+        c2 = droplet
     if type_droplet == 3:
         #temp redirect
         temp_redirects[type] = droplet
-    if type_droplet == 4:
-        #temp c2
-        temp_c2_list[type] = droplet
 
 def delete_remaining_infra(key_gb):
     headers = {
@@ -248,6 +257,12 @@ def delete_remaining_infra(key_gb):
     remaining_droplets = json.loads(response.text)["droplets"]
     for i in remaining_droplets:
         del_droplet(i["id"])
+
+    response = requests.get('https://api.digitalocean.com/v2/firewalls', headers=headers)
+    remaining_firewall = json.loads(response.text)["firewalls"]
+    for i in remaining_firewall:
+        del_firewall(i["id"])
+
 
 
 def check_pool():
@@ -303,9 +318,9 @@ def config_droplet(type, type_connect,c2_type):
                 redirects[type]["domain"] = domain
                 subdomain = subdomains_redirectors[type][domain]
                 redirect_setup.setDNSInfo(domain,redirects[type]["ip"],subdomain)
-                while redirect_setup.check_propagation(ssh, c2_list, redirects, type, domain, k, ip) == False:
+                while redirect_setup.check_propagation(redirects, type, domain) == False:
                     time.sleep(900)
-                    ssh.close()
+                    """ssh.close()
                     ssh_work = False
                     while ssh_work == False:
                         try:
@@ -313,35 +328,40 @@ def config_droplet(type, type_connect,c2_type):
                             ssh_work = True
                         except Exception as e:
                             print(e)
-                redirect_setup.full_setup(ssh, c2_list, redirects, type, domain, k, ip,subdomain)
+                    """
+                firewall_id = redirect_setup.full_setup(ssh, c2, redirects, type, domain, k, ip,subdomain)
+                firewall_ids.append(firewall_id)
                 ssh.close()
                 print("Redirectors Set")
             if type_connect == 2:
                 print("Setting C2's")
-                ip = c2_list[type]['ip']
+                ip = c2['ip']
                 ssh.connect(ip, username='root', pkey=k)
                 worked = True
                 c2_setup.install_c2(ssh,c2_type)
                 password = c2_setup.setup_api(ssh,ip,c2_type)
-                c2_list[type]['password'] = password
+                c2['password'] = password
                 print("API KEY set")
-                print("Setting Certificates")
-                c2_setup.setup_certificate(ssh,type)
                 print("Setting Listener Profile")
                 c2_setup.setup_listener(ip,type,c2_type)
+                c2_setup.setup_redirectors_ssh(ssh)
+                c2_setup.setup_redirectors(ssh, redirects, type)
+                firewall_id = c2_setup.firewall_rules(c2, redirects)
+                firewall_ids.append(firewall_id)
+                ssh.close()
                 print("All Profiles Set")
                 print("You are ready to go. This is your infrastructure:")
                 show_infra()
-                c2_setup.firewall_rules(ssh)
                 #run command
             if type_connect == 3:
-                domain = temp_redirects[type][0]
+                domain = domains_types[type][0]
                 domains_in_use.append(domain)
                 temp_redirects[type]["domain"] = domain
                 ip = temp_redirects[type]['ip']
                 ssh.connect(ip, username='root', pkey=k)
                 worked = True
                 print("Configuring Temporary redirector: "+domain)
+                subdomain = set_subdomain(domain)
                 redirect_setup.install_redir(ssh)
                 print("Setting SSL certificates... this might take a while...")
                 print("Waiting DNS propagations! We will check every hour")
@@ -351,10 +371,10 @@ def config_droplet(type, type_connect,c2_type):
                 domain = domains_types[type].pop()
                 domains_in_use.append(domain)
                 temp_redirects[type]["domain"] = domain
-                subdomain = subdomains_redirectors[type][domain]
                 redirect_setup.setDNSInfo(domain,temp_redirects[type]["ip"],subdomain)
-                while redirect_setup.check_propagation(ssh, c2_list, temp_redirects, type, domain, k, ip) == False:
+                while redirect_setup.check_propagation(temp_redirects, type, domain) == False:
                     time.sleep(900)
+                    """
                     ssh.close()
                     ssh_work = False
                     while ssh_work == False:
@@ -363,39 +383,42 @@ def config_droplet(type, type_connect,c2_type):
                             ssh_work = True
                         except Exception as e:
                             print(e)
-                subdomain = subdomains_redirectors[type][domain]
-                redirect_setup.full_setup(ssh, c2_list, temp_redirects, type, domain, k, ip,subdomain)
+                    """
+                firewall_id = redirect_setup.full_setup(ssh,c2, temp_redirects, type, domain, k, ip,subdomain)
+                firewall_ids.append(firewall_id)
+                c2_setup.append_rule(temp_redirects[type])
+                ssh.close()
+                worked = False
+                while worked == False:
+                    try:
+                        ip = c2['ip']
+                        ssh.connect(ip, username='root', pkey=k)
+                        worked = True
+                    except:
+                        time.sleep(1)
+                c2_setup.setup_forward(ssh, temp_redirects[type])
                 ssh.close()
                 print("Redirectors Set")
-            if type_connect == 4:
-                print("Setting Temporary C2's")
-                ip = temp_c2_list[type]['ip']
-                ssh.connect(ip, username='root', pkey=k)
-                worked = True
-                c2_setup.install_c2(ssh,c2_type)
-                c2_setup.setup_api(ssh, ip,c2_type)
-                print("API KEY set")
-                print("Setting Listener Profile")
-                c2_setup.setup_listener(ip,type,c2_type)
-                print("All Profiles Set")
-                print("You are ready to go. This is your infrastructure:")
-                show_infra()
-                c2_setup.firewall_rules(ssh)
-                #run command
         except Exception as err:
             print(err)
-            time.sleep(10)
+            time.sleep(3)
             logging.debug(err)
             logging.info('Error connecting to Host')
             full_message = "Error in Droplet creation: "+str(err)
             message_queu["action6"].append({"message": full_message})
 
-def update_operation(domains_brn, c2_brn, redirects_brn, domains_in_use, c2_list, redirects):
+def set_subdomain(domain):
+    print("Set subdomain for the redirector: " + domain)
+    subdomain = input(">")
+    return subdomain
+
+
+def update_operation(domains_brn, redirects_brn, domains_in_use, c2, redirects):
     #check all burned domains, c2 ips, redirect ips
     if bool(domains_brn):
         full_message = ""
         for i in domains_brn:
-            full_message = full_message +"[+] Domain burned: "+i["domains"] +"\n"
+            full_message = full_message +"\n[+] Domain burned: "+i["domains"] +"\n"
             for j in i["blacklist_list"]:
                 full_message = full_message +"\t Caught by: "+j["engine"]+". Reference: "+j["reference"] +"\n"
             object_burned = ""
@@ -412,21 +435,6 @@ def update_operation(domains_brn, c2_brn, redirects_brn, domains_in_use, c2_list
                 if message_already_in == False:
                     message_queu["action1"].append({"message":full_message, "droplet":object_burned})
                     #avoid adding same message multiple times
-
-
-    """
-    if bool(c2_brn):
-        full_message = ""
-        for i in c2_brn:
-            full_message = full_message + "[+] C2 IP's burned: "+i["ips"]
-            for j in i["blacklist_list"]:
-                full_message = full_message + "\t Caught by: "+j["engine"]+". Reference: "+j["reference"]
-            object_burned = ""
-            for k in c2_list:
-                if c2_list[k]["ip"] == i["ips"]:
-                    object_burned = c2_list[k]
-            message_queu["action2"].append({"message":full_message, "droplet":object_burned})
-    """
 
     if bool(redirects_brn):
         full_message = ""
@@ -448,7 +456,7 @@ def update_operation(domains_brn, c2_brn, redirects_brn, domains_in_use, c2_list
 
 
 def set_and_check():
-    global menu_open,domains_brn, c2_brn, redirects_brn, domains_in_use, c2_list, redirects,c2_mythic, domains, domains_types, burned_domains,temp_c2_list,temp_redirects,log,message_queu,key_gb
+    global menu_open,domains_brn, c2_brn, redirects_brn, domains_in_use, c2, redirects,c2_mythic, domains, domains_types, burned_domains,temp_redirects,log,message_queu,key_gb
 
     if(backup_restored == True):
         #create redirectors
@@ -469,13 +477,12 @@ def set_and_check():
     menu_open = True
     while True:
         domains_brn = apivoid_handler.check_burned_domain(domains_in_use)
-        c2_brn = apivoid_handler.check_burned_c2_list(c2_list)
         redirects_brn = apivoid_handler.check_burned_redirectors(redirects)
 
-        backup_handle.save_backup(domains_types, domains, burned_domains,temp_c2_list, temp_redirects, redirects, c2_list, domains_in_use, log, message_queu,key_gb)
-        update_operation(domains_brn, c2_brn, redirects_brn, domains_in_use, c2_list, redirects)
-        time.sleep(config.check_infra_state)
+        backup_handle.save_backup(domains_types, domains, burned_domains, temp_redirects, redirects, c2, domains_in_use, log, message_queu,key_gb,firewall_ids)
+        update_operation(domains_brn, redirects_brn, domains_in_use, c2, redirects)
         message_queu_print()
+        time.sleep(config.check_infra_state)
 
 
 def damaged_components():
@@ -489,30 +496,24 @@ def damaged_components():
     if len(message_queu["action1"]) > 0 or len(message_queu["action2"])>0:
         #find redirectors burned first
         redirects_tmp_list = []
-        c2_tmp_list = []
         for i in message_queu["action1"]:
             redirects_tmp_list.append(i["droplet"]["ip"])
-        for i in message_queu["action2"]:
-            c2_tmp_list.append(i["droplet"]["ip"])
+
 
         #tag components with burned
         for i in redirects:
             if redirects[i]["ip"] in redirects_tmp_list:
                 redirects[i]["state"] = "burned"
 
-        for i in c2_tmp_list:
-            if c2_tmp_list[i]["ip"] in c2_tmp_list:
-                c2_tmp_list[i]["state"] = "burned"
+
 
         for index,key in enumerate(redirects):
             redirect_str = ""
             c2_str = ""
             if redirects[key]["state"] == "burned":
                 redirect_str = str(index+1) +f") [BURNED]"
-            if c2_list[key]["state"] == "burned":
-                c2_str = str(index+1+len(redirects)) + ") [BURNED]"
 
-            print("Redirect: "+redirects[key]["ip"] +f" {bcolors.WARNING}"+redirect_str +f"{bcolors.ENDC}>>>>>>> C2: " +c2_list[key]["ip"] +c2_str)
+            print("Redirect: "+redirects[key]["ip"] +f" {bcolors.WARNING}"+redirect_str +f"{bcolors.ENDC}")
 
         component = input("Component: ")
         print(f"{bcolors.WARNING}This will create a temporary droplet to replace the damaged component. Do you want yo continue?{bcolors.ENDC} {bcolors.BOLD}[Y\\n]{bcolors.ENDC}")
@@ -520,60 +521,30 @@ def damaged_components():
         option = option.lower()
         if option == "y":
             if int(component) == 0:
-                for i in message_queu["action1"][:]:
+                for index,item in enumerate(message_queu["action1"][:]):
                     for k in redirects:
-                        if redirects[k]["ip"] == i["droplet"]["ip"]:
+                        if redirects[k]["ip"] == item["droplet"]["ip"]:
                             redirects[k]["state"] = "pending_kill"
                             first_creation(k, 3)
                             config_droplet(k,3,0)
 
-                            first_creation(k, 4)
-                            config_droplet(k, 4, 0)
-
-                            message_queu["action1"].remove(i)
+                            message_queu["action1"].pop(index)
                             message_queu["action7"].append(
-                                {"message": "Temporary Droplet Ready. Pending discard.", "droplet": i})
+                                {"message": "Temporary Droplet Ready. Pending discard.", "droplet": item})
 
-                for i in message_queu["action2"][:]:
-                    for k in c2_list:
-                        if c2_list[k]["ip"] == i["droplet"]["ip"]:
-                            c2_list[k]["state"] = "pending_kill"
-                            first_creation(k, 4)
-                            config_droplet(k,4,0)
-
-                            message_queu["action2"].remove(i)
-                            message_queu["action7"].append(
-                                {"message": "Temporary Droplet Ready. Pending discard.", "droplet": i})
             else:
-                if int(component) > len(redirects):
-                    key_list = list(c2_list)
-                    component_key = key_list[int(component) - 1]
-                    c2_list[component_key]["state"] = "pending_kill"
-                    comp_mod_ip = c2_list[component_key]["ip"]
-                    first_creation(component_key, 4)
-                    config_droplet(component_key, 4, 0)
-                    for i in message_queu["action1"][:]:
-                        if i["droplet"]["ip"] == comp_mod_ip:
-                            message_queu["action7"].append({"message":"Temporary Droplet Ready. Pending discard.","droplet":i})
-                            message_queu["action1"].remove(i)
-                else:
-                    key_list = list(redirects)
-                    component_key = key_list[int(component)-1]
-                    redirects[component_key]["state"] = "pending_kill"
-                    comp_mod_ip = redirects[component_key]["ip"]
-                    first_creation(component_key,3)
-                    config_droplet(component_key, 3, 0)
 
-                    c2_list[component_key]["state"] = "pending_kill"
-                    c2_mod_ip = c2_list[component_key]["ip"]
-                    first_creation(component_key,4)
-                    config_droplet(component_key,4,0)
+                key_list = list(redirects)
+                component_key = key_list[int(component)-1]
+                redirects[component_key]["state"] = "pending_kill"
+                comp_mod_ip = redirects[component_key]["ip"]
+                first_creation(component_key,3)
+                config_droplet(component_key, 3, 0)
 
-
-                    for i in message_queu["action1"][:]:
-                        if i["droplet"]["ip"] == comp_mod_ip:
-                            message_queu["action7"].append({"message":"Temporary Droplet Ready. Pending discard.","droplet":i})
-                            message_queu["action1"].remove(i)
+                for index,item in enumerate(message_queu["action1"][:]):
+                    if item["droplet"]["ip"] == comp_mod_ip:
+                        message_queu["action7"].append({"message":"Temporary Droplet Ready. Pending discard.","droplet":item})
+                        message_queu["action1"].pop(index)
                     #get component modified from message_queue
 
                     #remove from message_queue
@@ -599,10 +570,8 @@ def discard_components():
             c2_str = ""
             if redirects[key]["state"] == "pending_kill":
                 redirect_str = str(index + 1) + ") [PENDING DISCARD]"
-            if c2_list[key]["state"] == "pending_kill":
-                c2_str = str(index + 1 + len(redirects)) + ") [PENDING DISCARD]"
 
-            print("Redirect: " + redirects[key]["ip"] + f" {bcolors.WARNING}"+redirect_str + f"{bcolors.ENDC}>>>>>>>" + c2_list[key]["ip"] + c2_str)
+            print("Redirect: " + redirects[key]["ip"] + f" {bcolors.WARNING}"+redirect_str + f"{bcolors.ENDC}")
 
         component = input("Component: ")
         print("Before discarding a component, make sure to migrate your agents to the new droplet.")
@@ -611,56 +580,26 @@ def discard_components():
         option = option.lower()
         if option == "y":
             if int(component) == 0:
-                for i in message_queu["action1"][:]:
+                for index,item in enumerate(message_queu["action1"][:]):
                     for k in redirects:
-                        if redirects[k]["ip"] == i["droplet"]["ip"]:
-                            message_queu["action7"].remove(i)
+                        if redirects[k]["ip"] == item["droplet"]["ip"]:
+                            message_queu["action7"].pop(index)
                             del_droplet(redirects[k]["id"])
-                            del_droplet(c2_list[k]["id"])
                             redirects[k] = temp_redirects[k]
-                            c2_list[k] = temp_c2_list[k]
                             temp_redirects.pop(k, None)
-                            temp_c2_list.pop(k, None)
-
-                for i in message_queu["action2"][:]:
-                    for k in c2_list:
-                        if c2_list[k]["ip"] == i["droplet"]["ip"]:
-                            message_queu["action7"].remove(i)
-                            del_droplet(c2_list[k]["id"])
-                            c2_list[k] = temp_c2_list[k]
-                            temp_c2_list.pop(k, None)
 
             else:
-                if int(component) > len(redirects):
+                key_list = list(redirects)
+                component_key = key_list[int(component) - 1]
+                comp_mod_ip = redirects[component_key]["ip"]
 
-                    key_list = list(c2_list)
-                    component_key = key_list[int(component) - 1]
-                    comp_mod_ip = c2_list[component_key]["ip"]
+                for index,item in enumerate(message_queu["action7"][:]):
+                    if item["droplet"]["droplet"]["ip"] == comp_mod_ip:
+                        message_queu["action7"].pop(index)
 
-                    for i in message_queu["action7"][:]:
-                        if i["droplet"]["ip"] == comp_mod_ip:
-                            message_queu["action7"].remove(i)
-
-                    del_droplet(c2_list[component_key]["id"])
-                    c2_list[component_key] = temp_c2_list[component_key]
-                    temp_c2_list.pop(component_key, None)
-
-                else:
-
-                    key_list = list(redirects)
-                    component_key = key_list[int(component) - 1]
-                    comp_mod_ip = redirects[component_key]["ip"]
-
-                    for i in message_queu["action7"][:]:
-                        if i["droplet"]["droplet"]["ip"] == comp_mod_ip:
-                            message_queu["action7"].remove(i)
-
-                    del_droplet(redirects[component_key]["id"])
-                    del_droplet(c2_list[component_key]["id"])
-                    redirects[component_key] = temp_redirects[component_key]
-                    c2_list[component_key] = temp_c2_list[component_key]
-                    temp_redirects.pop(component_key, None)
-                    temp_c2_list.pop(component_key, None)
+                del_droplet(redirects[component_key]["id"])
+                redirects[component_key] = temp_redirects[component_key]
+                temp_redirects.pop(component_key, None)
 
                     # get component modified from message_queue
 
@@ -672,8 +611,9 @@ def discard_components():
             pass
 
 def show_infra():
+    print("C2 Credentials: mythic_admin/"+c2["password"])
     for i in redirects:
-        print("Redirect: "+redirects[i]["ip"]+ " >>>>>>> "+"C2: "+c2_list[i]["ip"], "Credentials: mythic_admin/"+c2_list[i]["password"])
+        print("Redirect: "+redirects[i]["domain"]+">>>>"+redirects[i]["ip"])
 
 def set_apis():
     print("Choose API Key to set: ")
@@ -698,8 +638,10 @@ def kill_all():
     if option == "y":
         for i in redirects:
             del_droplet(i["id"])
-        for i in c2_list:
-            del_droplet(i["id"])
+        del_droplet(c2["id"])
+
+        for i in firewall_ids:
+            del_firewall(i)
     else:
         pass
 
@@ -714,39 +656,39 @@ def message_queu_print():
     if "action3" in message_queu:
         for i in message_queu["action3"][:]:
             print(i["message"])
-            message_queu["action3"].remove(i)
+        message_queu["action3"].clear()
     if "action4" in message_queu:
         for i in message_queu["action4"][:]:
             print(i["message"])
-            message_queu["action4"].remove(i)
+        message_queu["action4"].clear()
     if "action5" in message_queu:
         for i in message_queu["action5"][:]:
             print(i["message"])
-            message_queu["action5"].remove(i)
+        message_queu["action5"].clear()
     if "action6" in message_queu:
         for i in message_queu["action6"][:]:
             print(i["message"])
-            message_queu["action6"].remove(i)
+        message_queu["action6"].clear()
     if "action7" in message_queu:
         for i in message_queu["action7"]:
             print(i["message"])
 
 def check_backup():
-    global domains_brn, c2_brn, redirects_brn, domains_in_use, c2_list, redirects, c2_mythic, domains, domains_types, burned_domains, temp_c2_list, temp_redirects, log, message_queu, key_gb
+    global domains_brn, redirects_brn, domains_in_use, c2, redirects, c2_mythic, domains, domains_types, burned_domains, temp_redirects, log, message_queu, key_gb, firewall_ids
 
     if backup.backup_saved == 1:
         bkp = backup_handle.recover_backup()
         domains_types = bkp[0]
         domains = bkp[1]
         burned_domains = bkp[2]
-        temp_c2_list = bkp[3]
-        temp_redirects = bkp[4]
-        redirects = bkp[5]
-        c2_list = bkp[6]
-        domains_in_use = bkp[7]
-        log = bkp[8]
-        message_queu = bkp[9]
-        key_gb = bkp[10]
+        temp_redirects = bkp[3]
+        redirects = bkp[4]
+        c2 = bkp[5]
+        domains_in_use = bkp[6]
+        log = bkp[7]
+        message_queu = bkp[8]
+        key_gb = bkp[9]
+        firewall_ids = bkp[10]
         apivoid_handler.get_estimated_queries()
         return False
     else:
@@ -755,10 +697,10 @@ def check_backup():
         return True
 
 def menu():
-    global api, domains_types,domains,burned_domains,temp_c2_list,temp_redirects,redirects,c2_list,domains_in_use,log,message_queu
+    global api, domains_types,domains,burned_domains,temp_redirects,redirects,c2,domains_in_use,log,message_queu
     while True:
 
-        backup_handle.save_backup(domains_types, domains, burned_domains,temp_c2_list, temp_redirects, redirects, c2_list, domains_in_use, log, message_queu, key_gb)
+        backup_handle.save_backup(domains_types, domains, burned_domains, temp_redirects, redirects, c2, domains_in_use, log, message_queu, key_gb,firewall_ids)
         while(menu_open == False):
             time.sleep(1)
         print("[+] Choose an option:")
@@ -769,11 +711,11 @@ def menu():
         print("5) Print Domains")
         situational_message_6 = "[No pending migrations]"
         if len(message_queu["action1"]) > 0 or len(message_queu["action2"])> 0:
-            situational_message_6 = f"{bcolors.WARNING}You have burned domains/c2's/redirectors{bcolors.ENDC}"
+            situational_message_6 = f"{bcolors.WARNING}You have burned domains/redirectors{bcolors.ENDC}"
         print(f"6) Pending Migrations "+situational_message_6)
         situational_message_7 = "[No pending discards]"
         if len(message_queu["action7"]) > 0:
-            situational_message_7 = f"{bcolors.WARNING}[You have pending discards for domains/c2's/redirectors] {bcolors.ENDC}"
+            situational_message_7 = f"{bcolors.WARNING}[You have pending discards for domains/redirectors] {bcolors.ENDC}"
         print(f"7) Pending Discards "+situational_message_7)
         print("8) Show Infra")
 
@@ -891,7 +833,7 @@ def menu():
 
 
 def restricted_menu():
-    global api, domains_types, domains, burned_domains, temp_c2_list, temp_redirects, redirects, c2_list, domains_in_use, log, message_queu
+    global api, domains_types, domains, burned_domains, temp_redirects, redirects, c2, domains_in_use, log, message_queu
 
     check = False
     haul_option = ""
@@ -952,8 +894,7 @@ def restricted_menu():
                         domains.remove(actual_domains[int(domain_option)])
                 for k in domains_types:
                     for d in domains_types[k]:
-                        print("Set subdomain for the redirector: " + d)
-                        subdomain = input(">")
+                        subdomain = set_subdomain(d)
                         subdomains_redirectors[k] = {}
                         subdomains_redirectors[k][d] = subdomain
 
