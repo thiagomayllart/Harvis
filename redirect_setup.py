@@ -1,9 +1,15 @@
+import io
+import sys
 import time
 import namecheap_handler
 import apivoid_handler
 import config
 import paramiko
 import os
+import requests
+import json
+import logging
+import backup_handle
 
 redirectors_config = {}
 
@@ -36,46 +42,80 @@ def sftp_exists(sftp, path):
         return False
 
 
-def setup_redirector(type, domain, c2_list):
+def setup_redirector(type, domain, c2):
     global redirectors_config
     config_VirtualHost = config.config_VirtualHost
     config_default_ssl_conf_new = config.config_default_ssl_conf.replace("{1}", domain)
     config_htaccess_dic_new = config.config_htaccess_dic[type].replace("{1}", config.agent_profiles[type]["URI"])
-    config_htaccess_dic_new = config_htaccess_dic_new.replace("{2}",c2_list[type]["ip"])
+    config_htaccess_dic_new = config_htaccess_dic_new.replace("{2}",c2["ip"])
     config_htaccess_dic_new = config_htaccess_dic_new.replace("{3}",config.domain_front_redirector[type])
     redirectors_config[type] = {"config_default_ssl_conf":config_default_ssl_conf_new,"config_htaccess_dic":config_htaccess_dic_new,"config_VirtualHost":config_VirtualHost}
 
+def run_comm(ssh,cmd):
+    time.sleep(5)
+    outdata = ""
+    errdata = ""
+    worked = False
+    while worked == False:
+        chan = ssh.get_transport().open_session()
+        chan.exec_command(cmd)
+        chan.set_combine_stderr(True)
+
+        contents = io.StringIO()
+        error = io.StringIO()
+        exit_status = 0
+
+        while not chan.exit_status_ready():
+            if chan.recv_ready():
+                data = chan.recv(1024)
+                exit_status = chan.recv_exit_status()
+                while data:
+                    contents.write(data.decode())
+                    data = chan.recv(1024)
+                    exit_status = chan.recv_exit_status()
+
+        outdata = contents.getvalue()
+        errdata = error.getvalue()
+        if exit_status == 0:
+            worked = True
+        else:
+            check_critical(outdata)
+            time.sleep(5)
+    logging.info(outdata)
+    logging.info(errdata)
+    return (outdata, errdata)
+
+def check_critical(outdata):
+    if "Too many certificates" in outdata:
+        print("[+] Domain can't be used:")
+        print("Error: ")
+        print(outdata)
+        backup_handle.delete_backup()
+        print("[+] Choose another domain and run Harvis again")
+        sys.exit()
+
+
 def install_redir(ssh):
     print("Installing requirements")
-    (stdin, stdout, stderr) = ssh.exec_command("apt-get update -y && apt-get upgrade -y",get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("apt-get install apache2 -y",get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("a2enmod ssl rewrite proxy proxy_http",get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("a2ensite default-ssl.conf",get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("a2enmod proxy_connect",get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("service apache2 stop",get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("service apache2 start",get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("sudo apt-get update -y",get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("sudo apt-get install software-properties-common",get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("sudo add-apt-repository universe",get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("sudo add-apt-repository ppa:certbot/certbot -y",get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("sudo apt-get update -y", get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("apt-get install certbot python3-certbot-apache -y",get_pty=True)
-    ssh_stdout = stdout.read()
+    #run_comm(ssh,"apt-get update && apt-get install apache2 -y && a2enmod ssl rewrite proxy proxy_http && a2ensite "
+    #             "default-ssl.conf && a2enmod proxy_connect && service apache2 stop && service apache2 start && sudo "
+    #             "apt-get update -y && sudo apt-get install software-properties-common && sudo add-apt-repository "
+    #             "universe && sudo apt-get update -y && apt-get install certbot python3-certbot-apache -y")
+    run_comm(ssh,"apt-get update -y")
+    run_comm(ssh,"apt-get install apache2 -y")
+    run_comm(ssh,"a2enmod ssl rewrite proxy proxy_http")
+    run_comm(ssh,"a2ensite default-ssl.conf")
+    run_comm(ssh,"a2enmod proxy_connect")
+    run_comm(ssh,"service apache2 stop")
+    run_comm(ssh,"service apache2 start")
+    run_comm(ssh,"sudo apt-get update -y")
+    run_comm(ssh,"sudo apt-get install software-properties-common")
+    run_comm(ssh,"sudo add-apt-repository universe")
+    run_comm(ssh,"sudo apt-get update -y")
+    run_comm(ssh,"apt-get install certbot python3-certbot-apache -y")
     print("Requirements Installed")
 
-def check_propagation(ssh,c2_list, redirects, type, domain, pkey, ip):
+def check_propagation(redirects, type, domain):
     worked = False
     propagated = False
     while worked == False:
@@ -87,28 +127,18 @@ def check_propagation(ssh,c2_list, redirects, type, domain, pkey, ip):
             pass
     return propagated
 
-def full_setup(ssh,c2_list, redirects, type, domain, pkey, ip,subdomain):
-    print("Setting SSL certificates... this might take a while...")
+def full_setup(ssh,c2, redirects, type, domain, pkey, ip,subdomain):
+    print("Certificates set")
+    print("Finishing redirector setup")
     sftp = ssh.open_sftp()
     f = sftp.open("ssl_config.sh", "wb")
     f.write("(echo \"A\"; echo \"Y\"; echo \"3\"; echo \"2\";) | certbot -d " +subdomain+"."+ domain +","+domain+" --apache --register-unsafely-without-email")
     f.close()
 
-    print("Waiting DNS propagations! We will check every hour")
-    (stdin, stdout, stderr) = ssh.exec_command("chmod +x ssl_config.sh",get_pty=True)
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("sh ssl_config.sh", get_pty=True)
-    ssh_stdout = stdout.read().decode("utf-8")
-    while "failed" in ssh_stdout:
-        (stdin, stdout, stderr) = ssh.exec_command("sh ssl_config.sh",get_pty=True)
-        ssh_stdout = stdout.read()
-        time.sleep(900)
-    #if something: break
-    #else: sleep
-
-
+    run_comm(ssh,"chmod +x ssl_config.sh")
+    outdata, errdata = run_comm(ssh,"sh ssl_config.sh")
     #depending on the type you can set different redirector rules to each one
-    setup_redirector(type, domain, c2_list)
+    setup_redirector(type, domain, c2)
 
     try:
         f_read = sftp.open("/etc/apache2/sites-enabled/default-ssl.conf", "r")
@@ -178,69 +208,48 @@ def full_setup(ssh,c2_list, redirects, type, domain, pkey, ip,subdomain):
     f.write(newfile.encode(encoding='UTF-8'))
     f.close()
 
-    if not os.path.exists(os.getcwd()+"/certificates/"):
-        os.mkdir(os.getcwd()+"/certificates/")
-    if not os.path.exists(os.getcwd() + "/certificates/redirectors/"):
-        os.mkdir(os.getcwd()+"/certificates/redirectors/")
-    if not os.path.exists(os.getcwd() + "/certificates/redirectors/"+str(type)):
-        os.mkdir(os.getcwd()+"/certificates/redirectors/"+str(type))
-
-    check_cert = False
-    try:
-        localpath = os.getcwd()+"/certificates/redirectors/"+str(type)+"/cert.pem"
-        remotepath = "/etc/letsencrypt/live/"+subdomain+"."+domain+"/cert.pem"
-        sftp.get(remotepath, localpath)
-        localpath = os.getcwd()+"/certificates/redirectors/"+str(type)+"/privkey.pem"
-        remotepath = "/etc/letsencrypt/live/"+subdomain+"."+domain+"/privkey.pem"
-        sftp.get(remotepath, localpath)
-        check_cert = True
-    except Exception as e:
-        print(e)
-    if (check_cert == False):
-        try:
-            localpath = os.getcwd() + "/certificates/redirectors/" + str(type) + "/cert.pem"
-            remotepath = "/etc/letsencrypt/live/" + domain + "/cert.pem"
-            sftp.get(remotepath,localpath)
-            localpath = os.getcwd() + "/certificates/redirectors/" + str(type) + "/privkey.pem"
-            remotepath = "/etc/letsencrypt/live/" + domain + "/privkey.pem"
-            sftp.get(remotepath,localpath)
-        except Exception as e:
-            print(e)
-
     sftp.close()
-    ssh.exec_command("service apache2 restart")
-    ssh_stdout = stdout.read()
-
-    firewall_rules(ssh,c2_list[type]["ip"])
+    run_comm(ssh,"service apache2 restart")
+    return firewall_rules(c2["ip"],redirects[type]["id"],redirects[type]["domain"])
 
 
-def firewall_rules(ssh, ip):
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A PREROUTING -t nat -i eth0 -p tcp --dport 1:21 -j DNAT --to-destination $IP_C2".replace("$IP_C2",ip))
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A PREROUTING -t nat -i eth0 -p tcp --dport 23:442 -j DNAT --to-destination $IP_C2".replace("$IP_C2",ip))
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A PREROUTING -t nat -i eth0 -p tcp --dport 444:7442 -j DNAT --to-destination $IP_C2".replace("$IP_C2",ip))
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A PREROUTING -t nat -i eth0 -p tcp --dport 7444:65535 -j DNAT --to-destination $IP_C2".replace("$IP_C2",ip))
-    ssh_stdout = stdout.read()
-
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A POSTROUTING -t nat -p tcp -d $IP_C2 --dport 1:21 -j MASQUERADE")
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A POSTROUTING -t nat -p tcp -d $IP_C2 --dport 23:442 -j MASQUERADE")
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A POSTROUTING -t nat -p tcp -d $IP_C2 --dport 444:7442 -j MASQUERADE")
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A POSTROUTING -t nat -p tcp -d $IP_C2 --dport 7444:65535 -j MASQUERADE")
-    ssh_stdout = stdout.read()
-
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A FORWARD -p tcp -d $IP_C2 --dport 1:21 -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT".replace("$IP_C2",ip))
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A FORWARD -p tcp -d $IP_C2 --dport 23:442 -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT".replace("$IP_C2",ip))
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A FORWARD -p tcp -d $IP_C2 --dport 444:7442 -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT".replace("$IP_C2",ip))
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A FORWARD -p udp -d $IP_C2 --dport 1:65535 -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT".replace("$IP_C2",ip))
-    ssh_stdout = stdout.read()
+def firewall_rules(c2_ip,redirect_id,domain):
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + config.digital_ocean_token,
+    }
+    data = {"name": "redirector"+domain.replace(".",""), "inbound_rules": [
+        {
+            "protocol": "tcp",
+            "ports": "443",
+            "sources": {
+                "addresses": [
+                    "0.0.0.0/0"
+                ]
+            }
+        },
+        {
+            "protocol": "tcp",
+            "ports": "22",
+            "sources": {
+                "addresses": [
+                    c2_ip
+                ]
+            }
+        }
+    ]
+        , "droplet_ids": [
+            redirect_id
+        ]
+            }
+    response = requests.post('https://api.digitalocean.com/v2/firewalls', headers=headers, json=data)
+    id = firewall_id(response)
+    return id
 
 def setDNSInfo(domain,ip,subdomain):
     namecheap_handler.set_redirect_records(domain,ip,subdomain)
+
+def firewall_id(response):
+    dict = json.loads(response.content)
+    id = dict["firewall"]["id"]
+    return id
