@@ -44,29 +44,12 @@ def check_burned_domain(domains_in_use):
             pass
        # blacklist[6]["detected"] = True
         for j in blacklist:
-            if blacklist[j]["detected"] == True:
+            if blacklist[j]["detected"] == False:
                 blacklist_list.append(blacklist[j])
         if len(blacklist_list) > 0:
             domains_brn.append({"domains":i,"blacklist_list":blacklist_list})
 
     return domains_brn
-
-def check_burned_c2_list(c2_list):
-    global estimated_queries
-    ips_brn = []
-    for i in c2_list:
-        r = requests.get(
-            "https://endpoint.apivoid.com/iprep/v1/pay-as-you-go/?key=" + config.apivoid_key + "&ip=" + c2_list[i]["ip"])
-        results = json.loads(r.text)
-        blacklist = results["data"]["report"]["blacklists"]["engines"]
-        blacklist_list = []
-        estimated_queries = results["estimated_queries"]
-        for j in blacklist:
-            if blacklist[j]["detected"] == True:
-                blacklist_list.append(blacklist[j])
-        if len(blacklist_list) > 0:
-            ips_brn.append({"ips":c2_list[i]["ip"],"blacklist_list":blacklist_list})
-    return ips_brn
 
 def check_burned_redirectors(redirectors):
     global estimated_queries
