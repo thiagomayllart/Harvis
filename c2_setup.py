@@ -5,6 +5,9 @@ import requests
 import config
 import base64
 import os
+import logging
+import json
+import io
 
 api_key = ""
 
@@ -13,42 +16,66 @@ def install_c2(ssh, c2_type):
     if c2_type == 0:
         install_mythic(ssh)
 
+def run_comm(ssh,cmd):
+    time.sleep(5)
+    outdata = ""
+    errdata = ""
+    worked = False
+    while worked == False:
+        chan = ssh.get_transport().open_session()
+        chan.exec_command(cmd)
+        chan.set_combine_stderr(True)
+
+        contents = io.StringIO()
+        error = io.StringIO()
+        exit_status = 0
+
+        while not chan.exit_status_ready():
+            if chan.recv_ready():
+                data = chan.recv(1024)
+                exit_status = chan.recv_exit_status()
+                while data:
+                    contents.write(data.decode())
+                    data = chan.recv(1024)
+                    exit_status = chan.recv_exit_status()
+
+        outdata = contents.getvalue()
+        errdata = error.getvalue()
+        if exit_status == 0:
+            worked = True
+        else:
+            time.sleep(5)
+    logging.info(outdata)
+    logging.info(errdata)
+    return (outdata, errdata)
 
 def install_mythic(ssh):
-    (stdin, stdout, stderr) = ssh.exec_command("git clone https://github.com/its-a-feature/Mythic")
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; ./install_docker_ubuntu.sh")
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command(
+    run_comm(ssh,"git clone https://github.com/its-a-feature/Mythic")
+    run_comm(ssh,"cd Mythic; ./install_docker_ubuntu.sh")
+    run_comm(ssh,
         "cd Mythic; sudo ./mythic-cli install github https://github.com/MythicC2Profiles/http -f")
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command(
+    run_comm(ssh,
         "cd Mythic; sudo ./mythic-cli install github https://github.com/MythicC2Profiles/dynamichttp -f")
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command(
+    run_comm(ssh,
         "cd Mythic; sudo ./mythic-cli install github https://github.com/MythicAgents/Apollo -f")
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command(
+    run_comm(ssh,
         "cd Mythic; sudo ./mythic-cli install github https://github.com/MythicAgents/poseidon -f")
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command(
+    run_comm(ssh,
         "cd Mythic; sudo ./mythic-cli install github https://github.com/MythicAgents/apfell -f")
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("cd Mythic; sudo ./mythic-cli mythic start")
-    ssh_stdout = stdout.read()
+    run_comm(ssh,"cd Mythic; sudo ./mythic-cli mythic start")
 
+def setup_forward(ssh, redirector):
+    run_comm(ssh,
+        "chmod 400 /root/private.pem")
+    ssh.exec_command(
+        "ssh -i /root/private.pem -o StrictHostKeyChecking=accept-new -R 8080:127.0.0.1:80 -Nf root@"+redirector["ip"])
 
-def setup_certificate(ssh, type):
+def setup_redirectors(ssh, redirects, type):
+    setup_forward(ssh, redirects[type])
+
+def setup_redirectors_ssh(ssh):
     sftp = ssh.open_sftp()
-    localcert = os.getcwd() + "/certificates/redirectors/" + type + "/cert.pem"
-    localkey = os.getcwd() + "/certificates/redirectors/" + type + "/privkey.pem"
-
-    remote_path_cert = "/root/Mythic/C2_Profiles/http/c2_code/cert.pem"
-    remote_path_key = "/root/Mythic/C2_Profiles/http/c2_code/privkey.pem"
-
-    sftp.put(localcert, remote_path_cert)
-    sftp.put(localkey, remote_path_key)
-
+    sftp.put(os.getcwd()+'/private.pem',"/root/private.pem")
     sftp.close()
 
 
@@ -193,25 +220,67 @@ def setup_mythic_listener(ip, type):
                 time.sleep(5)
 
 
-def firewall_rules(ssh):
-    (stdin, stdout, stderr) = ssh.exec_command(
-        "iptables -A INPUT -p tcp -s {IP_PROXY} --dport 7443 -j ACCEPT".replace("{IP_PROXY}",
-                                                                                config.ip_allowed_to_connect_c2))
-    ssh_stdout = stdout.read()
-    ip = requests.get('https://api.ipify.org').text
-    (stdin, stdout, stderr) = ssh.exec_command(
-        "iptables -A INPUT -p tcp -s {IP_PROXY} --dport 7443 -j ACCEPT".replace("{IP_PROXY}", ip))
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A INPUT -p tcp -s 127.0.0.1 --dport 7443 -j ACCEPT")
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command(
-        "iptables -A INPUT -p tcp -s {IP_PROXY} --dport 8080 -j ACCEPT".replace("{IP_PROXY}", ip))
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command(
-        "iptables -A INPUT -p tcp -s {IP_PROXY} --dport 7443 -j ACCEPT".replace("{IP_PROXY}",
-                                                                                config.ip_allowed_to_connect_c2))
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A INPUT -p tcp -s 0.0.0.0/0 --dport 7443 -j DROP")
-    ssh_stdout = stdout.read()
-    (stdin, stdout, stderr) = ssh.exec_command("iptables -A INPUT -p tcp -s 0.0.0.0/0 --dport 8080 -j DROP")
-    ssh_stdout = stdout.read()
+def firewall_rules(c2,redirects):
+    redirect_ips = []
+    for i in redirects:
+        redirect_ips.append(redirects[i]["ip"])
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + config.digital_ocean_token,
+    }
+    data = {"name": "firewallc2", "inbound_rules": [
+        {
+            "protocol": "tcp",
+            "ports": "7443",
+            "sources": {
+                "addresses": [
+                    config.ip_allowed_to_connect_c2
+                ]
+            },
+        },
+        {
+            "protocol": "tcp",
+            "ports": "0",
+            "sources": {
+                "addresses":
+                    redirect_ips
+
+            },
+        }
+    ],"outbound_rules":[
+        {
+            "protocol": "tcp",
+            "ports": "0",
+            "destinations": {
+                "addresses":
+                    redirect_ips
+            }
+        }
+    ]
+            ,"droplet_ids": [
+            c2["id"]
+        ]
+            }
+    response = requests.post('https://api.digitalocean.com/v2/firewalls', headers=headers, json=data)
+    id = firewall_id(response)
+    return id
+
+
+def firewall_id(response):
+    dict = json.loads(response.content)
+    id = dict["firewall"]["id"]
+    return id
+
+def append_rule(additional_redir):
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + config.digital_ocean_token,
+    }
+    response = requests.get('https://api.digitalocean.com/v2/firewalls', headers=headers)
+    rule = json.loads(response.content)
+    for index, item in enumerate(rule["inbound_rules"]):
+        if item["ports"] == "22":
+            new_item = item["sources"]["addresses"].append(additional_redir["ip"])
+            rule["inbound_rules"][index] = new_item
+            break
+    response = requests.post('https://api.digitalocean.com/v2/firewalls', headers=headers, json=rule)
