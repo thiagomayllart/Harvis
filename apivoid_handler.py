@@ -44,7 +44,7 @@ def check_burned_domain(domains_in_use):
             pass
        # blacklist[6]["detected"] = True
         for j in blacklist:
-            if blacklist[j]["detected"] == False:
+            if blacklist[j]["detected"] == True:
                 blacklist_list.append(blacklist[j])
         if len(blacklist_list) > 0:
             domains_brn.append({"domains":i,"blacklist_list":blacklist_list})
